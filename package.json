@@ -1,0 +1,40 @@
+{
+  "name": "riftlogs",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently --kill-others --names api,web --prefix-colors magenta,cyan \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "node --watch server/index.ts",
+    "dev:web": "vite",
+    "spectator:login": "node scripts/open-spectator-login.ts",
+    "spectator": "node scripts/spectator-probe.ts",
+    "build": "npm run check && vite build",
+    "check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "better-sqlite3": "latest",
+    "drizzle-orm": "latest",
+    "fastify": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "concurrently": "latest",
+    "drizzle-kit": "latest",
+    "jsdom": "^30.0.1",
+    "playwright": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "vitest": "latest"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
