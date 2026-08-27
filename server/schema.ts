@@ -1,5 +1,6 @@
 import {
   integer,
+  primaryKey,
   sqliteTable,
   text,
   uniqueIndex,
@@ -39,4 +40,17 @@ export const liveAtlasEvents = sqliteTable(
       table.captureSequence,
     ),
   ],
+);
+
+export const hiddenCardReveals = sqliteTable(
+  "hidden_card_reveals",
+  {
+    captureId: integer("capture_id")
+      .notNull()
+      .references(() => liveAtlasCaptures.id),
+    actionSequence: integer("action_sequence").notNull(),
+    hiddenCardId: text("hidden_card_id").notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.captureId, table.actionSequence] })],
 );

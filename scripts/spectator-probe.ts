@@ -163,6 +163,8 @@ const foundInitialAction = await page.evaluate(async () => {
 
   let previousRows: HTMLElement[] | null = null;
   let previousSignatures: string[] = [];
+  let previousScoreSignature: string | null = null;
+  let previousTrashCards: ReturnType<typeof trashCards> | null = null;
   let scanTimer: number | undefined;
 
   const findNarrowMarker = (row: Element) =>
@@ -302,6 +304,199 @@ const foundInitialAction = await page.evaluate(async () => {
     };
   };
 
+  const participantNames = () =>
+    Array.from(
+      document.querySelectorAll<HTMLElement>(
+        "span.block.max-w-full.truncate.text-center",
+      ),
+    ).flatMap((element) => {
+      const name = element.textContent?.trim();
+      if (!name) return [];
+      const ownerElement = element.closest<HTMLElement>("[data-zone-owner]");
+      const bounds = element.getBoundingClientRect();
+      return [{
+        name,
+        zoneOwner: ownerElement?.getAttribute("data-zone-owner") ?? null,
+        rawHtml: element.outerHTML,
+        bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+      }];
+    });
+
+  const nearestParticipantName = (
+    element: HTMLElement,
+    participants: ReturnType<typeof participantNames>,
+    zoneOwner: string | null = null,
+  ) => {
+    const ownerMatch = zoneOwner
+      ? participants.find((participant) => participant.zoneOwner === zoneOwner)
+      : undefined;
+    if (ownerMatch) return ownerMatch.name;
+    const bounds = element.getBoundingClientRect();
+    const centerX = bounds.x + bounds.width / 2;
+    const centerY = bounds.y + bounds.height / 2;
+    return [...participants].sort((left, right) => {
+      const leftDistance =
+        Math.abs(left.bounds.x + left.bounds.width / 2 - centerX) +
+        Math.abs(left.bounds.y + left.bounds.height / 2 - centerY);
+      const rightDistance =
+        Math.abs(right.bounds.x + right.bounds.width / 2 - centerX) +
+        Math.abs(right.bounds.y + right.bounds.height / 2 - centerY);
+      return leftDistance - rightDistance;
+    })[0]?.name ?? null;
+  };
+
+  const scoreTracks = () => {
+    const participants = participantNames();
+    return Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[role="group"][aria-label*="score track" i]',
+      ),
+    ).flatMap((group) => {
+      const label = group.getAttribute("aria-label") ?? "Unknown score track";
+      const active = group.querySelector<HTMLElement>(
+        '[role="button"][aria-pressed="true"], [role="button"][data-active="true"]',
+      );
+      if (!active) return [];
+
+      const activeLabel = active.getAttribute("aria-label") ?? "";
+      const scoreText =
+        activeLabel.match(/score\s+to\s+(\d+)/i)?.[1] ??
+        active.textContent?.match(/\d+/)?.[0];
+      const score = scoreText ? Number.parseInt(scoreText, 10) : Number.NaN;
+      if (!Number.isFinite(score)) return [];
+
+      return [{
+        label,
+        playerName: nearestParticipantName(group, participants),
+        perspective: /^your\b/i.test(label)
+          ? "your"
+          : /^opponent\b/i.test(label)
+            ? "opponent"
+            : "unknown",
+        score,
+        rawHtml: group.outerHTML,
+        attributes: attributesOf(group),
+        activeNode: rawSnapshotOf(active),
+      }];
+    });
+  };
+
+  const scoreSignatureOf = (scores: ReturnType<typeof scoreTracks>) =>
+    JSON.stringify(
+      scores
+        .map(({ label, perspective, score }) => ({ label, perspective, score }))
+        .sort((left, right) => left.label.localeCompare(right.label)),
+    );
+
+  const scoreEventFrom = (
+    scores: ReturnType<typeof scoreTracks>,
+    latestRow: HTMLElement | undefined,
+  ): RawLiveAtlasEvent => ({
+    format: "riftlogs-atlas-live-score-event",
+    formatVersion: 1,
+    capturedAt: new Date().toISOString(),
+    source: {
+      kind: "riftatlas-live-dom",
+      url: location.href,
+      pageTitle: document.title,
+    },
+    group: { kind: "score-track", attributes: {} },
+    turn: latestRow
+      ? eventFrom(latestRow).turn
+      : {
+          turnNumber: null,
+          turnPlayerId: null,
+          turnPlayerName: null,
+          ariaLabel: null,
+          attributes: {},
+          divider: null,
+        },
+    scores,
+    participants: participantNames(),
+  });
+
+  function trashCards() {
+    const participants = participantNames();
+    return Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[data-drop-zone="trash"][data-card-id]',
+      ),
+    ).flatMap((card, zoneIndex) => {
+      const image = card.querySelector<HTMLImageElement>('img[alt]');
+      const ownerElement = card.closest<HTMLElement>("[data-zone-owner]");
+      const name = image?.getAttribute("alt")?.trim();
+      if (!name) return [];
+      const bounds = card.getBoundingClientRect();
+      return [{
+        zoneIndex,
+        cardId: card.getAttribute("data-card-id"),
+        zoneOwner: ownerElement?.getAttribute("data-zone-owner") ?? null,
+        playerName:
+          participants.find(
+            (participant) =>
+              participant.zoneOwner !== null &&
+              participant.zoneOwner === ownerElement?.getAttribute("data-zone-owner"),
+          )?.name ?? null,
+        name,
+        rawHtml: card.outerHTML,
+        attributes: attributesOf(card),
+        ownerElementAttributes: ownerElement ? attributesOf(ownerElement) : {},
+        imageAttributes: image ? attributesOf(image) : {},
+        bounds: {
+          x: bounds.x,
+          y: bounds.y,
+          width: bounds.width,
+          height: bounds.height,
+        },
+      }];
+    });
+  }
+
+  const trashSignatureOf = (cards: ReturnType<typeof trashCards>) =>
+    JSON.stringify(cards.map(({ zoneIndex, cardId, zoneOwner, name }) => ({
+      zoneIndex,
+      cardId,
+      zoneOwner,
+      name,
+    })));
+
+  const trashEventFrom = (
+    cards: ReturnType<typeof trashCards>,
+    previousCards: ReturnType<typeof trashCards>,
+    initial: boolean,
+    latestRow: HTMLElement | undefined,
+  ): RawLiveAtlasEvent => {
+    const previousIds = new Set(previousCards.map((card) => card.cardId));
+    return {
+      format: "riftlogs-atlas-live-trash-event",
+      formatVersion: 1,
+      capturedAt: new Date().toISOString(),
+      source: {
+        kind: "riftatlas-live-dom",
+        url: location.href,
+        pageTitle: document.title,
+      },
+      participants: participantNames(),
+      group: { kind: "trash-zone", attributes: {} },
+      turn: latestRow
+        ? eventFrom(latestRow).turn
+        : {
+            turnNumber: null,
+            turnPlayerId: null,
+            turnPlayerName: null,
+            ariaLabel: null,
+            attributes: {},
+            divider: null,
+          },
+      initial,
+      previousCards,
+      cards,
+      changedCards: initial
+        ? []
+        : cards.filter((card) => !previousIds.has(card.cardId)),
+    };
+  };
+
   const newestRowsNotPreviouslySeen = (rows: HTMLElement[]) => {
     if (previousRows === null) return [...rows].reverse();
 
@@ -332,11 +527,67 @@ const foundInitialAction = await page.evaluate(async () => {
     previousRows = rows;
     previousSignatures = rows.map((row) => row.outerHTML);
 
-    if (newRows.length === 0) return rows.length > 0;
+    const scores = scoreTracks();
+    const scoreSignature = scoreSignatureOf(scores);
+    const scoresChanged =
+      scores.length > 0 && scoreSignature !== previousScoreSignature;
+    previousScoreSignature = scoreSignature;
+
+    const currentTrashCards = trashCards();
+    const trashInitial = previousTrashCards === null;
+    const oldTrashCards = previousTrashCards ?? [];
+    const trashChanged =
+      trashSignatureOf(currentTrashCards) !== trashSignatureOf(oldTrashCards);
+    previousTrashCards = currentTrashCards;
 
     const events = newRows.map(eventFrom);
-    await record(events);
+    if (events.length > 0) await record(events);
+    if (scoresChanged) {
+      await record([scoreEventFrom(scores, rows[0])]);
+    }
+    if (trashChanged) {
+      await record([
+        trashEventFrom(currentTrashCards, oldTrashCards, trashInitial, rows[0]),
+      ]);
+    }
+
     const latest = events.at(-1);
+    if (!latest && scoresChanged) {
+      await report({
+        timestamp: null,
+        text: `Observed scores: ${scores
+          .map(({ label, playerName, score }) => `${playerName ?? label} ${score}`)
+          .join(", ")}.`,
+        actionType: "score-observation",
+        turnNumber: null,
+        turnPlayerName: null,
+        actorMarkerColor: null,
+      });
+    }
+    if (!latest && trashChanged && !trashInitial) {
+      await report({
+        timestamp: null,
+        text: currentTrashCards.length
+          ? `Trash top changed to ${currentTrashCards
+              .map((card) =>
+                card.playerName
+                  ? `${card.name} — ${card.playerName}${
+                      card.zoneOwner ? ` (${card.zoneOwner})` : ""
+                    }`
+                  : card.zoneOwner
+                    ? `${card.name} (${card.zoneOwner})`
+                    : card.name,
+              )
+              .join(", ")}.`
+          : "A visible trash top card was removed.",
+        actionType: "trash-observation",
+        turnNumber: null,
+        turnPlayerName: null,
+        actorMarkerColor: null,
+      });
+    }
+    if (!latest) return rows.length > 0;
+
     const turn = latest?.turn as Record<string, unknown> | undefined;
     const action = latest?.action as Record<string, unknown> | undefined;
     const actorMarker = action?.actorMarker as Record<string, unknown> | null;
@@ -368,6 +619,8 @@ const foundInitialAction = await page.evaluate(async () => {
     childList: true,
     subtree: true,
     characterData: true,
+    attributes: true,
+    attributeFilter: ["aria-pressed", "data-active", "data-card-id", "alt", "src"],
   });
 
   return foundAction;

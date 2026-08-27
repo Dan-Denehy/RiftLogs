@@ -128,6 +128,13 @@ h3 { margin: 0; font-size: 1rem; }
 .log-heading { display: flex; justify-content: space-between; gap: 1rem; padding: 1.5rem; }
 .log-heading > p { color: #8795ad; }
 .capture-warning { margin: 0; padding: 0.8rem 1.5rem; border-top: 1px solid rgb(255 187 110 / 18%); color: #ffc480; background: rgb(255 187 110 / 7%); font-size: 0.85rem; }
+.manual-corrections { padding: 1.25rem 1.5rem; border-top: 1px solid rgb(158 178 255 / 20%); background: rgb(158 178 255 / 6%); }
+.manual-corrections h3 { margin-bottom: 0.35rem; }
+.manual-corrections > p:not(.step) { color: #aebbd3; }
+.manual-corrections fieldset { margin-top: 1rem; padding: 0.8rem; border: 1px solid rgb(255 255 255 / 10%); border-radius: 0.55rem; }
+.manual-corrections legend { padding: 0 0.35rem; color: #e9eef8; }
+.manual-choice { margin: 0.35rem 0.35rem 0 0; padding: 0.55rem 0.7rem; border: 1px solid rgb(158 178 255 / 35%); border-radius: 0.45rem; color: #cbd6ff; background: #111c31; cursor: pointer; }
+.manual-choice--selected { border-color: #72dda9; color: #72dda9; background: rgb(83 211 154 / 9%); }
 .turn { display: grid; grid-template-columns: 8rem 1fr; border-top: 1px solid rgb(255 255 255 / 8%); }
 .turn h3 { padding: 1.35rem 1.5rem; color: #b8c7ff; border-left: 0.2rem solid #65738d; }
 .turn--green h3 { color: #78ddb7; border-left-color: #78ddb7; }
@@ -143,6 +150,17 @@ h3 { margin: 0; font-size: 1rem; }
 .action--color-marker .actor { color: var(--actor-color); }
 .action--unknown .actor { color: #7f8da6; }
 .action-time { display: block; margin-top: 0.15rem; color: #65738d; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.68rem; }
+.action-state { margin-top: 0.7rem; color: #aebbd3; font-size: 0.78rem; }
+.action-state summary { cursor: pointer; color: #8ea8ff; }
+.rune-checkpoint { margin: 0.65rem 0 0 !important; padding: 0.55rem 0.65rem; border: 1px solid rgb(114 221 169 / 20%); border-radius: 0.45rem; color: #9be7bf; background: rgb(83 211 154 / 6%); }
+.state-players { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.65rem; margin-top: 0.65rem; }
+.state-players section { padding: 0.7rem; border: 1px solid rgb(255 255 255 / 8%); border-radius: 0.55rem; background: rgb(5 10 20 / 28%); }
+.state-players h4 { margin: 0 0 0.35rem; color: #e9eef8; }
+.state-players p { margin-bottom: 0.35rem !important; }
+.state-players ul { margin: 0.45rem 0 0; padding-left: 1.1rem; border: 0; }
+.state-players li { display: list-item; padding: 0.15rem 0; border: 0 !important; }
+.state-players li small { margin-left: 0.3rem; }
+.state-uncertain { margin: 0.5rem 0 0 !important; color: #ffc480; font-size: 0.72rem; }
 .turn small, .muted, .empty-log small { color: #7f8da6; }
 .sequence { color: #65738d; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 .muted { padding: 1.35rem; border-left: 1px solid rgb(255 255 255 / 8%); }

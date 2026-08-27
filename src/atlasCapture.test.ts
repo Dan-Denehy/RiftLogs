@@ -155,6 +155,95 @@ describe("live Atlas event interpretation", () => {
       analyzeCaptureCompleteness(battlefieldTurns).initiatingPhaseCaptured,
     ).toBe(true);
   });
+
+  it("keeps both raw score tracks as an ordered score observation", () => {
+    const turns = parseLiveAtlasEvents([
+      liveRow(1, 4, "Lumi", "player_lumi", GREEN, GREEN, "Passed focus."),
+      {
+        captureSequence: 2,
+        rawJson: JSON.stringify({
+          format: "riftlogs-atlas-live-score-event",
+          formatVersion: 1,
+          capturedAt: "2026-08-26T12:00:01.000Z",
+          group: { kind: "score-track", attributes: {} },
+          turn: {
+            turnNumber: "4",
+            turnPlayerName: "Lumi",
+            turnPlayerId: "player_lumi",
+            ariaLabel: "Turn 4, Lumi",
+            divider: null,
+          },
+          scores: [
+            {
+              label: "Your score track",
+              perspective: "your",
+              score: 7,
+              rawHtml: '<div role="group" aria-label="Your score track">raw</div>',
+            },
+            {
+              label: "Opponent score track",
+              perspective: "opponent",
+              score: 5,
+              rawHtml: '<div role="group" aria-label="Opponent score track">raw</div>',
+            },
+          ],
+        }),
+      },
+    ]);
+
+    const observation = turns[0].actions[1];
+    expect(observation).toMatchObject({
+      sequence: 2,
+      actionType: "score-observation",
+      actorPlayerName: null,
+      observedScores: [
+        { label: "Your score track", perspective: "your", score: 7 },
+        { label: "Opponent score track", perspective: "opponent", score: 5 },
+      ],
+    });
+    expect(observation.rawHtml).toContain("Your score track");
+    expect(observation.rawHtml).toContain("Opponent score track");
+  });
+
+  it("keeps a newly revealed trash-top card from its DOM observation", () => {
+    const turns = parseLiveAtlasEvents([
+      liveRow(1, 7, "Lumi", "player_lumi", GREEN, YELLOW, "Moved 1 card from Treasure Hoard to trash."),
+      {
+        captureSequence: 2,
+        rawJson: JSON.stringify({
+          format: "riftlogs-atlas-live-trash-event",
+          formatVersion: 1,
+          capturedAt: "2026-08-26T12:00:01.000Z",
+          group: { kind: "trash-zone", attributes: {} },
+          turn: {
+            turnNumber: "7",
+            turnPlayerName: "Lumi",
+            turnPlayerId: "player_lumi",
+            ariaLabel: "Turn 7, Lumi",
+            divider: null,
+          },
+          initial: false,
+          previousCards: [],
+          cards: [{ zoneIndex: 0, cardId: "card-pyke", zoneOwner: "opponent", name: "Pyke, Dockside Butcher" }],
+          changedCards: [{
+            zoneIndex: 0,
+            cardId: "card-pyke",
+            zoneOwner: "opponent",
+            name: "Pyke, Dockside Butcher",
+            rawHtml: '<button data-drop-zone="trash"><img alt="Pyke, Dockside Butcher"></button>',
+          }],
+        }),
+      },
+    ]);
+
+    expect(turns[0].actions[1]).toMatchObject({
+      actionType: "trash-observation",
+      text: "Visible trash top: Pyke, Dockside Butcher.",
+      observedTrashCards: [
+        { cardId: "card-pyke", zoneOwner: "opponent", name: "Pyke, Dockside Butcher" },
+      ],
+    });
+  });
 });
 
 function actionNamed(text: string) {

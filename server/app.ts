@@ -4,6 +4,7 @@ import { createDatabase } from "./database.ts";
 import {
   liveAtlasCaptures,
   liveAtlasEvents,
+  hiddenCardReveals,
   rawAtlasCaptures,
 } from "./schema.ts";
 
@@ -72,9 +73,49 @@ export function buildApp(options: BuildAppOptions = {}) {
         .orderBy(asc(liveAtlasEvents.captureSequence))
         .all();
 
-      return { capture, events };
+      const reveals = await database.db
+        .select({
+          actionSequence: hiddenCardReveals.actionSequence,
+          hiddenCardId: hiddenCardReveals.hiddenCardId,
+        })
+        .from(hiddenCardReveals)
+        .where(eq(hiddenCardReveals.captureId, captureId))
+        .all();
+
+      return { capture, events, hiddenCardReveals: reveals };
     },
   );
+
+  app.put<{
+    Params: { captureId: string };
+    Body: { actionSequence?: unknown; hiddenCardId?: unknown };
+  }>("/api/live-captures/:captureId/hidden-card-reveal", async (request, reply) => {
+    const captureId = Number.parseInt(request.params.captureId, 10);
+    const actionSequence = request.body?.actionSequence;
+    const hiddenCardId = request.body?.hiddenCardId;
+    if (
+      !Number.isInteger(captureId) ||
+      captureId < 1 ||
+      typeof actionSequence !== "number" ||
+      !Number.isInteger(actionSequence) ||
+      actionSequence < 1 ||
+      typeof hiddenCardId !== "string" ||
+      hiddenCardId.length === 0
+    ) {
+      return reply.code(400).send({ error: "Invalid hidden-card correction." });
+    }
+
+    database.db
+      .insert(hiddenCardReveals)
+      .values({ captureId, actionSequence, hiddenCardId, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: [hiddenCardReveals.captureId, hiddenCardReveals.actionSequence],
+        set: { hiddenCardId, updatedAt: new Date() },
+      })
+      .run();
+
+    return { actionSequence, hiddenCardId };
+  });
 
   app.post("/api/atlas-captures", async (request, reply) => {
     if (typeof request.body !== "string") {

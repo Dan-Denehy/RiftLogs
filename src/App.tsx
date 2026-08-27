@@ -11,6 +11,11 @@ import {
   type DisplayAction,
   type DisplayTurn,
 } from "./atlasCapture";
+import {
+  findHiddenCardRevealCandidates,
+  reconstructMatchState,
+  type MatchStateSnapshot,
+} from "./matchState";
 
 type ApiStatus = "checking" | "connected" | "unavailable";
 
@@ -35,6 +40,7 @@ export default function App() {
   const [importState, setImportState] = useState<ImportState>({ kind: "idle" });
   const [liveCaptures, setLiveCaptures] = useState<LiveCaptureSummary[]>([]);
   const [selectedCaptureId, setSelectedCaptureId] = useState<number | null>(null);
+  const [hiddenCardReveals, setHiddenCardReveals] = useState<Record<number, string>>({});
   const [historyMessage, setHistoryMessage] = useState("Loading recordings…");
 
   useEffect(() => {
@@ -73,6 +79,7 @@ export default function App() {
       const response = await fetch(`/api/live-captures/${captureId}`);
       const result = (await response.json()) as {
         events?: Array<{ captureSequence: number; rawJson: string }>;
+        hiddenCardReveals?: Array<{ actionSequence: number; hiddenCardId: string }>;
         error?: string;
       };
       if (!response.ok || !result.events) {
@@ -81,6 +88,14 @@ export default function App() {
 
       const interpretedTurns = parseLiveAtlasEvents(result.events);
       setTurns(interpretedTurns);
+      setHiddenCardReveals(
+        Object.fromEntries(
+          (result.hiddenCardReveals ?? []).map((reveal) => [
+            reveal.actionSequence,
+            reveal.hiddenCardId,
+          ]),
+        ),
+      );
       setImportState({ kind: "idle" });
       setHistoryMessage(
         `Showing live capture #${captureId}: ${result.events.length} raw events interpreted.`,
@@ -90,6 +105,29 @@ export default function App() {
       setHistoryMessage(
         error instanceof Error ? error.message : "Could not interpret capture.",
       );
+    }
+  }
+
+  async function saveHiddenCardReveal(
+    actionSequence: number,
+    hiddenCardId: string,
+  ) {
+    setHiddenCardReveals((current) => ({
+      ...current,
+      [actionSequence]: hiddenCardId,
+    }));
+    if (selectedCaptureId === null) return;
+
+    const response = await fetch(
+      `/api/live-captures/${selectedCaptureId}/hidden-card-reveal`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ actionSequence, hiddenCardId }),
+      },
+    );
+    if (!response.ok) {
+      setHistoryMessage("Could not save the hidden-card correction.");
     }
   }
 
@@ -121,6 +159,8 @@ export default function App() {
       }
 
       setTurns(parsed.turns);
+      setSelectedCaptureId(null);
+      setHiddenCardReveals({});
       setImportState({
         kind: "saved",
         message: `Raw capture saved unchanged as import #${result.captureId}.`,
@@ -198,12 +238,26 @@ export default function App() {
         )}
       </section>
 
-      {turns ? <EventLog turns={turns} /> : <EmptyLog />}
+      {turns ? (
+        <EventLog
+          turns={turns}
+          hiddenCardReveals={hiddenCardReveals}
+          onHiddenCardReveal={saveHiddenCardReveal}
+        />
+      ) : <EmptyLog />}
     </main>
   );
 }
 
-function EventLog({ turns }: { turns: DisplayTurn[] }) {
+function EventLog({
+  turns,
+  hiddenCardReveals,
+  onHiddenCardReveal,
+}: {
+  turns: DisplayTurn[];
+  hiddenCardReveals: Record<number, string>;
+  onHiddenCardReveal: (actionSequence: number, hiddenCardId: string) => void;
+}) {
   const actionCount = turns.reduce(
     (total, turn) => total + turn.actions.length,
     0,
@@ -213,15 +267,21 @@ function EventLog({ turns }: { turns: DisplayTurn[] }) {
     .filter(Number.isFinite);
   const firstTurnNumber = numberedTurns.length ? Math.min(...numberedTurns) : null;
   const completeness = analyzeCaptureCompleteness(turns);
+  const stateByAction = reconstructMatchState(turns, { hiddenCardReveals });
+  const hiddenRevealCandidates = findHiddenCardRevealCandidates(
+    turns,
+    stateByAction,
+  );
+  const turnCount = new Set(numberedTurns).size;
 
   return (
     <section className="event-log" aria-labelledby="event-log-heading">
       <header className="log-heading">
         <div>
-          <p className="step">Raw capture preview</p>
+          <p className="step">Interpreted match timeline</p>
           <h2 id="event-log-heading">Turn-by-turn event log</h2>
         </div>
-        <p>{turns.length} turns · {actionCount} actions</p>
+        <p>{turnCount} turns · {actionCount} actions</p>
       </header>
 
       {firstTurnNumber !== null && firstTurnNumber > 1 ? (
@@ -237,6 +297,39 @@ function EventLog({ turns }: { turns: DisplayTurn[] }) {
           battlefield-selection or mulligan text, so events before the first saved
           action may be missing even if turn 1 is displayed.
         </p>
+      ) : null}
+
+      {hiddenRevealCandidates.length > 0 ? (
+        <section className="manual-corrections" aria-labelledby="hidden-card-heading">
+          <p className="step">Manual match information</p>
+          <h3 id="hidden-card-heading">Resolve hidden cards</h3>
+          <p>
+            These chain resolutions had no matching played-card event. Choose a
+            hidden card only when you know it was revealed from that position.
+          </p>
+          {hiddenRevealCandidates.map((candidate) => (
+            <fieldset key={candidate.actionSequence}>
+              <legend>
+                After #{candidate.actionSequence}, was {candidate.cardName} one of
+                these hidden cards?
+              </legend>
+              {candidate.hiddenCards.map((card) => (
+                <button
+                  className={
+                    hiddenCardReveals[candidate.actionSequence] === card.id
+                      ? "manual-choice manual-choice--selected"
+                      : "manual-choice"
+                  }
+                  key={card.id}
+                  onClick={() => onHiddenCardReveal(candidate.actionSequence, card.id)}
+                  type="button"
+                >
+                  {card.location} (placed at #{card.placedAtSequence})
+                </button>
+              ))}
+            </fieldset>
+          ))}
+        </section>
       ) : null}
 
       {turns.map((turn, turnIndex) => (
@@ -281,6 +374,7 @@ function EventLog({ turns }: { turns: DisplayTurn[] }) {
                           .join(", ")}
                       </small>
                     ) : null}
+                    <ActionState snapshot={stateByAction.get(action.sequence)} />
                   </div>
                 </li>
               ))}
@@ -291,6 +385,60 @@ function EventLog({ turns }: { turns: DisplayTurn[] }) {
         </article>
       ))}
     </section>
+  );
+}
+
+function ActionState({ snapshot }: { snapshot?: MatchStateSnapshot }) {
+  if (!snapshot) return null;
+
+  return (
+    <details className="action-state">
+      <summary>State after this action</summary>
+      {snapshot.runeCheckpoint ? (
+        <p className="rune-checkpoint">
+          {snapshot.runeCheckpoint.phase === "start"
+            ? `${snapshot.runeCheckpoint.playerName} starts the turn with ${snapshot.runeCheckpoint.totalRunes} runes total (all ready).`
+            : `${snapshot.runeCheckpoint.playerName} ends the turn with ${snapshot.runeCheckpoint.readyRunes} runes up, ${snapshot.runeCheckpoint.totalRunes} runes total.`}
+        </p>
+      ) : null}
+      <div className="state-players">
+        {snapshot.players.map((player) => (
+          <section key={player.playerId ?? player.playerName}>
+            <h4>{player.playerName}</h4>
+            <p><strong>{player.points}</strong> points · <strong>{player.units.length}</strong> confirmed units</p>
+            {player.units.length > 0 ? (
+              <ul>
+                {player.units.map((unit) => (
+                  <li key={unit.id}>
+                    {unit.name} <small>{unit.location}</small>
+                    {unit.equipment.length > 0 ? (
+                      <small> · Equipped: {unit.equipment.join(", ")}</small>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {player.hiddenCards.length > 0 ? (
+              <ul>
+                {player.hiddenCards.map((card) => (
+                  <li key={card.id}>
+                    {card.name ?? "Hidden card"} <small>{card.location}</small>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {player.unclassifiedBaseCards.length > 0 ? (
+              <p className="state-uncertain">
+                Unclassified at base: {player.unclassifiedBaseCards.join(", ")}
+              </p>
+            ) : null}
+          </section>
+        ))}
+      </div>
+      {snapshot.warnings.length > 0 ? (
+        <p className="state-uncertain">{snapshot.warnings.at(-1)}</p>
+      ) : null}
+    </details>
   );
 }
 

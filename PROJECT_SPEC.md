@@ -75,6 +75,11 @@ This checkpoint includes:
 
 A real Atlas capture has now verified the current turn/action structure. Sanitized importer tests cover that observed structure; normalization tests will grow as more action variants become available.
 
+The current client-side state prototype derives a snapshot after every action. It
+tracks points with rewind support and confirmed unit locations. Board cards whose
+card type cannot be proven from the log remain explicitly unclassified rather than
+being guessed as units. Derived state never modifies the preserved raw events.
+
 ## Explicitly deferred
 
 - automatic RiftAtlas login;

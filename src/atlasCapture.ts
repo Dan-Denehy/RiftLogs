@@ -11,6 +11,23 @@ export type CapturedMarker = {
 export type PlayerTone = "green" | "yellow" | "unknown";
 export type ActorResolution = "color-marker" | "unknown";
 
+export type ObservedScore = {
+  label: string;
+  playerName?: string | null;
+  perspective: "your" | "opponent" | "unknown";
+  score: number;
+  rawHtml: string;
+};
+
+export type ObservedTrashCard = {
+  zoneIndex: number;
+  cardId: string | null;
+  zoneOwner: string | null;
+  playerName?: string | null;
+  name: string;
+  rawHtml: string;
+};
+
 export type DisplayAction = {
   sequence: number;
   turnSequence: number;
@@ -34,6 +51,8 @@ export type DisplayAction = {
   timestamp?: string | null;
   cards: CapturedCard[];
   battlefieldMarkers: CapturedMarker[];
+  observedScores: ObservedScore[];
+  observedTrashCards: ObservedTrashCard[];
 };
 
 export type DisplayTurn = {
@@ -136,6 +155,8 @@ export function parseLiveAtlasEvents(rows: LiveAtlasEventRow[]) {
   const groupedTurns = new Map<string, DisplayTurn>();
   for (const { captureSequence, event } of parsedRows) {
     const turn = recordOrEmpty(event.turn);
+    const isScoreObservation = event.format === "riftlogs-atlas-live-score-event";
+    const isTrashObservation = event.format === "riftlogs-atlas-live-trash-event";
     const action = recordOrEmpty(event.action);
     const turnNumber = numberOrNull(turn.turnNumber);
     const group = recordOrEmpty(event.group);
@@ -164,11 +185,17 @@ export function parseLiveAtlasEvents(rows: LiveAtlasEventRow[]) {
       groupedTurns.set(turnKey, displayTurn);
     }
 
+    const observedScores = liveObservedScores(event.scores);
+    const observedTrashCards = liveObservedTrashCards(event.changedCards);
     const actorMarker = recordOrEmpty(action.actorMarker);
     const actorMarkerColor = stringOrNull(actorMarker.backgroundColor);
     const actorColorKey = normalizeRgbKey(actorMarkerColor);
     const actor = actorColorKey ? colorsByPlayer.get(actorColorKey) : undefined;
-    const rawHtml = stringOrEmpty(action.outerHTML);
+    const rawHtml = isScoreObservation
+      ? observedScores.map((score) => score.rawHtml).join("\n")
+      : isTrashObservation
+        ? observedTrashCards.map((card) => card.rawHtml).join("\n")
+        : stringOrEmpty(action.outerHTML);
     const parsedAction = new DOMParser().parseFromString(rawHtml, "text/html");
     const actionElement = parsedAction.body.firstElementChild as HTMLElement | null;
 
@@ -183,8 +210,16 @@ export function parseLiveAtlasEvents(rows: LiveAtlasEventRow[]) {
       actorMarkerColor,
       actorColorKey,
       actorResolution: actor ? "color-marker" : "unknown",
-      actionType: stringOrNull(action.actionType),
-      text: stringOrEmpty(action.text),
+      actionType: isScoreObservation
+        ? "score-observation"
+        : isTrashObservation
+          ? "trash-observation"
+          : stringOrNull(action.actionType),
+      text: isScoreObservation
+        ? scoreObservationText(observedScores)
+        : isTrashObservation
+          ? trashObservationText(observedTrashCards)
+          : stringOrEmpty(action.text),
       rawHtml,
       captureSequence,
       capturedAt: stringOrEmpty(event.capturedAt),
@@ -197,6 +232,8 @@ export function parseLiveAtlasEvents(rows: LiveAtlasEventRow[]) {
       battlefieldMarkers: actionElement
         ? battlefieldMarkersOf(actionElement)
         : [],
+      observedScores,
+      observedTrashCards,
     });
   }
 
@@ -316,6 +353,8 @@ function parseRiftLogsCapture(capture: RiftLogsCapture) {
           timestamp,
           cards: action.cards ?? [],
           battlefieldMarkers: action.battlefieldMarkers ?? [],
+          observedScores: action.observedScores ?? [],
+          observedTrashCards: action.observedTrashCards ?? [],
         };
       }),
     };
@@ -408,6 +447,8 @@ function parseOriginalDomCapture(capture: OriginalDomCapture) {
           timestamp,
           cards: cardsOf(row),
           battlefieldMarkers: battlefieldMarkersOf(row),
+          observedScores: [],
+          observedTrashCards: [],
         };
       }),
     };
@@ -705,16 +746,81 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function parseLiveEvent(rawJson: string) {
   const parsed: unknown = JSON.parse(rawJson);
+  const isActionEvent =
+    isRecord(parsed) &&
+    parsed.format === "riftlogs-atlas-live-event" &&
+    isRecord(parsed.turn) &&
+    isRecord(parsed.action);
+  const isScoreEvent =
+    isRecord(parsed) &&
+    parsed.format === "riftlogs-atlas-live-score-event" &&
+    isRecord(parsed.turn) &&
+    Array.isArray(parsed.scores);
+  const isTrashEvent =
+    isRecord(parsed) &&
+    parsed.format === "riftlogs-atlas-live-trash-event" &&
+    isRecord(parsed.turn) &&
+    Array.isArray(parsed.cards) &&
+    Array.isArray(parsed.changedCards);
   if (
     !isRecord(parsed) ||
-    parsed.format !== "riftlogs-atlas-live-event" ||
     parsed.formatVersion !== 1 ||
-    !isRecord(parsed.turn) ||
-    !isRecord(parsed.action)
+    (!isActionEvent && !isScoreEvent && !isTrashEvent)
   ) {
     throw new Error("A stored event is not a supported RiftLogs live event.");
   }
   return parsed;
+}
+
+function liveObservedTrashCards(value: unknown): ObservedTrashCard[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((candidate) => {
+    if (!isRecord(candidate)) return [];
+    const name = stringOrNull(candidate.name);
+    const zoneIndex = numberOrNull(candidate.zoneIndex);
+    if (!name || zoneIndex === null) return [];
+    return [{
+      zoneIndex,
+      cardId: stringOrNull(candidate.cardId),
+      zoneOwner: stringOrNull(candidate.zoneOwner),
+      playerName: stringOrNull(candidate.playerName),
+      name,
+      rawHtml: stringOrEmpty(candidate.rawHtml),
+    }];
+  });
+}
+
+function liveObservedScores(value: unknown): ObservedScore[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((candidate) => {
+    if (!isRecord(candidate)) return [];
+    const score = numberOrNull(candidate.score);
+    if (score === null) return [];
+    const perspective = stringOrNull(candidate.perspective);
+    return [{
+      label: stringOrEmpty(candidate.label),
+      playerName: stringOrNull(candidate.playerName),
+      perspective:
+        perspective === "your" || perspective === "opponent"
+          ? perspective
+          : "unknown" as const,
+      score,
+      rawHtml: stringOrEmpty(candidate.rawHtml),
+    }];
+  });
+}
+
+function scoreObservationText(scores: ObservedScore[]) {
+  if (scores.length === 0) return "Observed a score-track change.";
+  return `Observed scores: ${scores
+    .map((score) => `${score.label || score.perspective} ${score.score}`)
+    .join(", ")}.`;
+}
+
+function trashObservationText(cards: ObservedTrashCard[]) {
+  if (cards.length === 0) return "Observed a trash-zone change.";
+  return `Visible trash top: ${cards.map((card) => card.name).join(", ")}.`;
 }
 
 function isInitiatingPhaseText(text: string) {

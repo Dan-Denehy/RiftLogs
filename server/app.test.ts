@@ -107,6 +107,22 @@ describe("live capture history", () => {
           rawJson: JSON.stringify(rawEvent),
         },
       ],
+      hiddenCardReveals: [],
+    });
+
+    const correctionResponse = await app.inject({
+      method: "PUT",
+      url: `/api/live-captures/${recorder.captureId}/hidden-card-reveal`,
+      payload: { actionSequence: 84, hiddenCardId: "hidden-1" },
+    });
+    const correctedDetail = await app.inject({
+      method: "GET",
+      url: `/api/live-captures/${recorder.captureId}`,
+    });
+
+    expect(correctionResponse.statusCode).toBe(200);
+    expect(correctedDetail.json()).toMatchObject({
+      hiddenCardReveals: [{ actionSequence: 84, hiddenCardId: "hidden-1" }],
     });
   });
 });
