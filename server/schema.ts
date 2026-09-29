@@ -6,6 +6,21 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
+export const players = sqliteTable("players", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  displayName: text("display_name").notNull(),
+  normalizedName: text("normalized_name").notNull().unique(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+// Callers supply a trimmed, lowercase normalizedName for name matching.
+export const cards = sqliteTable("cards", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  normalizedName: text("normalized_name").notNull().unique(),
+  category: text("category").notNull().default("unknown"),
+});
+
 export const rawAtlasCaptures = sqliteTable("raw_atlas_captures", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   filename: text("filename").notNull(),

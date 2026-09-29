@@ -3,8 +3,23 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 
 export function createDatabase(filename = "riftlogs.db") {
   const sqlite = new Database(filename);
+  sqlite.pragma("foreign_keys = ON");
   sqlite.pragma("journal_mode = WAL");
   sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS players (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      display_name TEXT NOT NULL,
+      normalized_name TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS cards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      normalized_name TEXT NOT NULL UNIQUE,
+      category TEXT NOT NULL DEFAULT 'unknown'
+    );
+
     CREATE TABLE IF NOT EXISTS raw_atlas_captures (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       filename TEXT NOT NULL,
