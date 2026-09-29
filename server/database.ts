@@ -37,6 +37,22 @@ export function createDatabase(filename = "riftlogs.db") {
       event_count INTEGER NOT NULL DEFAULT 0
     );
 
+    CREATE TABLE IF NOT EXISTS matches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      capture_id INTEGER NOT NULL UNIQUE REFERENCES live_atlas_captures(id),
+      opening_captured INTEGER NOT NULL DEFAULT 0 CHECK (opening_captured IN (0, 1)),
+      ending_captured INTEGER NOT NULL DEFAULT 0 CHECK (ending_captured IN (0, 1)),
+      normalization_version INTEGER NOT NULL DEFAULT 1 CHECK (normalization_version > 0)
+    );
+
+    CREATE TABLE IF NOT EXISTS match_players (
+      match_id INTEGER NOT NULL REFERENCES matches(id),
+      player_id INTEGER NOT NULL REFERENCES players(id),
+      final_score INTEGER CHECK (final_score >= 0),
+      result TEXT NOT NULL DEFAULT 'unknown' CHECK (result IN ('unknown', 'win', 'loss', 'draw')),
+      PRIMARY KEY (match_id, player_id)
+    );
+
     CREATE TABLE IF NOT EXISTS live_atlas_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       capture_id INTEGER NOT NULL REFERENCES live_atlas_captures(id),

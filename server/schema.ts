@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm";
 import {
+  check,
   integer,
   primaryKey,
   sqliteTable,
@@ -37,6 +39,30 @@ export const liveAtlasCaptures = sqliteTable("live_atlas_captures", {
   endedAt: integer("ended_at", { mode: "timestamp_ms" }),
   eventCount: integer("event_count").notNull().default(0),
 });
+
+// The first normalization path uses live captures; recording times stay on the capture.
+export const matches = sqliteTable("matches", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  captureId: integer("capture_id").notNull().unique().references(() => liveAtlasCaptures.id),
+  openingCaptured: integer("opening_captured", { mode: "boolean" }).notNull().default(false),
+  endingCaptured: integer("ending_captured", { mode: "boolean" }).notNull().default(false),
+  normalizationVersion: integer("normalization_version").notNull().default(1),
+}, (table) => [
+  check("matches_opening_boolean", sql`${table.openingCaptured} IN (0, 1)`),
+  check("matches_ending_boolean", sql`${table.endingCaptured} IN (0, 1)`),
+  check("matches_version_positive", sql`${table.normalizationVersion} > 0`),
+]);
+
+export const matchPlayers = sqliteTable("match_players", {
+  matchId: integer("match_id").notNull().references(() => matches.id),
+  playerId: integer("player_id").notNull().references(() => players.id),
+  finalScore: integer("final_score"),
+  result: text("result", { enum: ["unknown", "win", "loss", "draw"] }).notNull().default("unknown"),
+}, (table) => [
+  primaryKey({ columns: [table.matchId, table.playerId] }),
+  check("match_players_score_nonnegative", sql`${table.finalScore} >= 0`),
+  check("match_players_result_valid", sql`${table.result} IN ('unknown', 'win', 'loss', 'draw')`),
+]);
 
 export const liveAtlasEvents = sqliteTable(
   "live_atlas_events",

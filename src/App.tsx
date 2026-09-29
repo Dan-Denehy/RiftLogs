@@ -80,6 +80,7 @@ export default function App() {
       const result = (await response.json()) as {
         events?: Array<{ captureSequence: number; rawJson: string }>;
         hiddenCardReveals?: Array<{ actionSequence: number; hiddenCardId: string }>;
+        match?: { id: number; participants: Array<{ displayName: string }> };
         error?: string;
       };
       if (!response.ok || !result.events) {
@@ -98,7 +99,10 @@ export default function App() {
       );
       setImportState({ kind: "idle" });
       setHistoryMessage(
-        `Showing live capture #${captureId}: ${result.events.length} raw events interpreted.`,
+        `Showing live capture #${captureId}: ${result.events.length} raw events interpreted.` +
+          (result.match
+            ? ` Saved match #${result.match.id}. Players: ${result.match.participants.map((player) => player.displayName).join(", ") || "not yet identified"}.`
+            : ""),
       );
     } catch (error) {
       setTurns(null);

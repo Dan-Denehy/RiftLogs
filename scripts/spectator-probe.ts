@@ -2,6 +2,7 @@ import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { chromium, type BrowserContext } from "playwright";
 import { createDatabase } from "../server/database.ts";
+import { startFullDomCapture } from "./fullDomCapture.ts";
 import {
   LiveCaptureRecorder,
   type RawLiveAtlasEvent,
@@ -82,6 +83,9 @@ await page.exposeBinding(
 );
 
 console.log("Opening RiftAtlas in the dedicated spectator profile…");
+const fullCapture = process.env.RIFTLOGS_FULL_CAPTURE === "1"
+  ? await startFullDomCapture(page, roomId) : null;
+if (fullCapture) console.log(`Full DOM recording: ${fullCapture.filename}`);
 await page.goto("https://play.riftatlas.com/game", {
   waitUntil: "domcontentloaded",
 });
@@ -89,45 +93,43 @@ await page.bringToFront();
 console.log(`RiftAtlas page opened at ${page.url()}`);
 console.log(`Joining room ${roomId} as a spectator...`);
 
-const matchLog = page.locator(
-  '[data-match-log-group], li:has([data-log-action-placeholder="true"])',
-);
-if (!(await matchLog.first().isVisible().catch(() => false))) {
-  const spectateButton = page
-    .getByRole("button", { name: /spectate/i })
-    .first();
-
-  await spectateButton.waitFor({ state: "visible", timeout: 120_000 });
-  await spectateButton.click();
-
-  const namedRoomInput = page.locator(
-    'input[aria-label*="room" i], input[placeholder*="room" i], input[name*="room" i], input[id*="room" i]',
-  );
-  const roomInput = (await namedRoomInput.first().isVisible().catch(() => false))
-    ? namedRoomInput.first()
-    : page.getByRole("textbox").last();
-
-  await roomInput.waitFor({ state: "visible", timeout: 30_000 });
-  await roomInput.fill(roomId);
-
-  const containingForm = page.locator("form").filter({ has: roomInput });
-  const joinButton = (await containingForm.isVisible().catch(() => false))
-    ? containingForm.getByRole("button", { name: /spectate|join|watch/i }).last()
-    : page.getByRole("button", { name: /spectate|join|watch/i }).last();
-
-  if (await joinButton.isVisible().catch(() => false)) {
-    await joinButton.click();
-  } else {
-    await roomInput.press("Enter");
-  }
-}
+// The lobby exposes the code input BEFORE its single Join / Spectate button.
+// Start at the lobby explicitly rather than accepting an old match as the requested room.
+await page.goto("https://play.riftatlas.com/", { waitUntil: "domcontentloaded" });
+const roomInput = page.getByPlaceholder("AB12CD", { exact: true });
+await roomInput.waitFor({ state: "visible", timeout: 120_000 });
+await roomInput.fill(roomId);
+console.log(`Room code entered: ${roomId}`);
+await page.getByRole("button", { name: "Join / Spectate", exact: true }).click({ timeout: 120_000 });
+console.log("Join / Spectate submitted. Waiting for the match log...");
 
 console.log("Waiting for the RiftAtlas match log…");
 
 await page
   .locator('[data-match-log-group], li:has([data-log-action-placeholder="true"])')
   .first()
-  .waitFor({ state: "attached", timeout: 0 });
+  .waitFor({ state: "attached", timeout: 120_000 });
+console.log(`Match log detected after joining room ${roomId}.`);
+
+if (fullCapture) {
+  console.log("Full DOM capture active. Keep this browser open across all games; join the next room manually if needed. Ctrl+C stops the series capture.");
+  await new Promise<void>((resolve) => {
+    let stopping = false;
+    const stop = async () => {
+      if (stopping) return;
+      stopping = true;
+      await fullCapture.flush().catch((error) => console.error("Final snapshot failed:", error));
+      await context.close().catch(() => undefined);
+      resolve();
+    };
+    process.once("SIGINT", () => void stop());
+    process.once("SIGTERM", () => void stop());
+    page.once("close", () => void stop());
+  });
+  fullCapture.finish();
+  console.log(`Full DOM capture saved: ${fullCapture.filename}`);
+  process.exit(0);
+}
 
 const database = createDatabase();
 const recorder = LiveCaptureRecorder.start(database.db, {

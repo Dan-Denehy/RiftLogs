@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDatabase } from "./database.ts";
-import { cards, liveAtlasEvents, players } from "./schema.ts";
+import { cards, liveAtlasCaptures, liveAtlasEvents, matches, matchPlayers, players } from "./schema.ts";
 
 let database: ReturnType<typeof createDatabase>;
 
@@ -78,6 +78,64 @@ describe("card storage", () => {
     expect(database.db.select().from(cards).all()).toEqual([
       expect.objectContaining(card),
     ]);
+  });
+});
+
+describe("normalized match storage", () => {
+  function createMatch() {
+    const capture = database.db.insert(liveAtlasCaptures).values({
+      roomId: "TEST", sourceUrl: "https://example.test", status: "complete",
+      startedAt: new Date(),
+    }).returning().get();
+    return database.db.insert(matches).values({ captureId: capture.id }).returning().get();
+  }
+
+  function createPlayer(name: string) {
+    return database.db.insert(players).values({
+      displayName: name, normalizedName: name.toLowerCase(), createdAt: new Date(),
+    }).returning().get();
+  }
+
+  it("keeps completeness and results unknown until established", () => {
+    const match = createMatch();
+    const player = createPlayer("Lumi");
+    const participant = database.db.insert(matchPlayers).values({
+      matchId: match.id, playerId: player.id,
+    }).returning().get();
+    expect(match).toMatchObject({ openingCaptured: false, endingCaptured: false, normalizationVersion: 1 });
+    expect(participant).toMatchObject({ result: "unknown", finalScore: null });
+  });
+
+  it("stores two participants and lets a player participate in another match", () => {
+    const first = createMatch();
+    const second = createMatch();
+    const lumi = createPlayer("Lumi");
+    const opponent = createPlayer("AtherVee");
+    const rows = [
+      { matchId: first.id, playerId: lumi.id, result: "win" as const, finalScore: 8 },
+      { matchId: first.id, playerId: opponent.id, result: "loss" as const, finalScore: 6 },
+      { matchId: second.id, playerId: lumi.id, result: "unknown" as const, finalScore: null },
+    ];
+    database.db.insert(matchPlayers).values(rows).run();
+    expect(database.db.select().from(matchPlayers).all()).toEqual(expect.arrayContaining(rows));
+    expect(() => database.db.insert(matchPlayers).values(rows[0]).run()).toThrow(/UNIQUE constraint/);
+  });
+
+  it("rejects duplicate capture normalization and missing references", () => {
+    const match = createMatch();
+    const player = createPlayer("Lumi");
+    expect(() => database.db.insert(matches).values({ captureId: match.captureId }).run()).toThrow(/UNIQUE constraint/);
+    expect(() => database.db.insert(matches).values({ captureId: 999 }).run()).toThrow(/FOREIGN KEY/);
+    expect(() => database.db.insert(matchPlayers).values({ matchId: match.id, playerId: 999 }).run()).toThrow(/FOREIGN KEY/);
+    expect(() => database.db.insert(matchPlayers).values({ matchId: 999, playerId: player.id }).run()).toThrow(/FOREIGN KEY/);
+  });
+
+  it("rejects a negative final score", () => {
+    const match = createMatch();
+    const player = createPlayer("Lumi");
+    expect(() => database.db.insert(matchPlayers).values({
+      matchId: match.id, playerId: player.id, finalScore: -1,
+    }).run()).toThrow(/CHECK constraint/);
   });
 });
 

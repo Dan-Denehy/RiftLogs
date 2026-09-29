@@ -9,6 +9,7 @@
     "dev:web": "vite",
     "spectator:login": "node scripts/open-spectator-login.ts",
     "spectator": "node scripts/spectator-probe.ts",
+    "full-log-capture": "node scripts/full-log-capture.ts",
     "build": "npm run check && vite build",
     "check": "tsc --noEmit",
     "test": "vitest run"

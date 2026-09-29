@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import { createDatabase } from "./database.ts";
+import { normalizeLiveMatch } from "./matchStore.ts";
 import {
   liveAtlasCaptures,
   liveAtlasEvents,
@@ -82,7 +83,8 @@ export function buildApp(options: BuildAppOptions = {}) {
         .where(eq(hiddenCardReveals.captureId, captureId))
         .all();
 
-      return { capture, events, hiddenCardReveals: reveals };
+      const match = normalizeLiveMatch(database.db, captureId);
+      return { capture, events, hiddenCardReveals: reveals, match };
     },
   );
 

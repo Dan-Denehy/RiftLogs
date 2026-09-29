@@ -7,5 +7,6 @@ dist/
 .DS_Store
 coverage/
 logs/*.json
+logs/full-log-capture/
 .playwright-profile/
 .riftlogs-spectator-profile/

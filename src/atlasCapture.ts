@@ -823,7 +823,7 @@ function trashObservationText(cards: ObservedTrashCard[]) {
   return `Visible trash top: ${cards.map((card) => card.name).join(", ")}.`;
 }
 
-function isInitiatingPhaseText(text: string) {
+export function isInitiatingPhaseText(text: string) {
   return (
     /\bmulligan(?:s|ed|ing)?\b/i.test(text) ||
     /\b(?:selected|selects|chose|chooses|picked|picks)\b.{0,50}\bbattlefields?\b/i.test(

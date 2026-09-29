@@ -1,5 +1,27 @@
 # RiftLogs
 
+## Full DOM research capture
+
+Run `npm.cmd run full-log-capture` and enter the room ID, or run
+`npm.cmd run full-log-capture -- ROOMCODE`. Close any other RiftLogs spectator
+browser first: this uses the same dedicated login profile and spectator joining flow.
+
+This separate research mode writes `logs/full-log-capture/full-log-capture-<timestamp>.jsonl`.
+Each line is a JSON record with a sequence and receipt time. It saves initial DOM HTML,
+DOM mutation batches (including removed nodes and old attribute/text values), changed
+full-page snapshots every second, and navigation records. Observation resumes after
+page reloads. Keep it running across the entire Bo3; if the next game uses a new room,
+join that room manually in the same tab. Press Ctrl+C after the series and wait for
+the saved-file message (answer Y if Windows asks to terminate the batch job).
+
+This records the main page DOM, including text, attributes and image URLs, not server
+state, iframe/shadow DOM contents, canvas pixels, or image binaries. Mutation batches
+are browser observations, not guaranteed individual game actions. Files can grow large.
+They are research artifacts, excluded from Git and separate from SQLite history;
+the normal Atlas JSON importer does not accept this format. Share the complete JSONL
+file for analysis, along with the known game results. Use the normal spectator command
+when you want a standard history recording.
+
 RiftLogs captures and analyzes Riftbound match logs from RiftAtlas spectator pages. See [PROJECT_SPEC.md](PROJECT_SPEC.md) for the architecture and current scope.
 
 The current diagnostic checkpoint supports this flow:

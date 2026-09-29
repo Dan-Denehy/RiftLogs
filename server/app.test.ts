@@ -108,6 +108,7 @@ describe("live capture history", () => {
         },
       ],
       hiddenCardReveals: [],
+      match: { captureId: recorder.captureId, openingCaptured: false, endingCaptured: false, participants: [] },
     });
 
     const correctionResponse = await app.inject({
@@ -123,6 +124,7 @@ describe("live capture history", () => {
     expect(correctionResponse.statusCode).toBe(200);
     expect(correctedDetail.json()).toMatchObject({
       hiddenCardReveals: [{ actionSequence: 84, hiddenCardId: "hidden-1" }],
+      match: { id: detailResponse.json().match.id },
     });
   });
 });
