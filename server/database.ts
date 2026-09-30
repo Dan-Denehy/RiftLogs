@@ -64,6 +64,14 @@ export function createDatabase(filename = "riftlogs.db") {
     CREATE UNIQUE INDEX IF NOT EXISTS live_atlas_events_capture_sequence_unique
       ON live_atlas_events(capture_id, capture_sequence);
 
+    CREATE TABLE IF NOT EXISTS player_id_observations (
+      raw_event_id INTEGER PRIMARY KEY REFERENCES live_atlas_events(id),
+      match_id INTEGER NOT NULL REFERENCES matches(id),
+      player_id INTEGER NOT NULL REFERENCES players(id),
+      atlas_player_id TEXT NOT NULL,
+      observed_name TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS hidden_card_reveals (
       capture_id INTEGER NOT NULL REFERENCES live_atlas_captures(id),
       action_sequence INTEGER NOT NULL,

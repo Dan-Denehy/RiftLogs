@@ -83,6 +83,15 @@ export const liveAtlasEvents = sqliteTable(
   ],
 );
 
+// Evidence only: Atlas IDs are not assumed to identify a permanent account.
+export const playerIdObservations = sqliteTable("player_id_observations", {
+  rawEventId: integer("raw_event_id").primaryKey().references(() => liveAtlasEvents.id),
+  matchId: integer("match_id").notNull().references(() => matches.id),
+  playerId: integer("player_id").notNull().references(() => players.id),
+  atlasPlayerId: text("atlas_player_id").notNull(),
+  observedName: text("observed_name").notNull(),
+});
+
 export const hiddenCardReveals = sqliteTable(
   "hidden_card_reveals",
   {

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { createDatabase } from "./database.ts";
 import { LiveCaptureRecorder } from "./liveCaptureStore.ts";
 import { normalizeLiveMatch } from "./matchStore.ts";
-import { liveAtlasEvents, matches, matchPlayers, players } from "./schema.ts";
+import { liveAtlasEvents, matches, matchPlayers, players, playerIdObservations } from "./schema.ts";
 
 let database: ReturnType<typeof createDatabase>;
 beforeEach(() => { database = createDatabase(":memory:"); });
@@ -17,6 +17,26 @@ function recording(names: string[], text = "Ended their turn.") {
   })));
   return recorder;
 }
+
+it("preserves changing Atlas IDs as evidence without changing player identity or duplicating observations", () => {
+  const first = recording(["Lumi"]);
+  first.append([
+    { turn: { turnPlayerName: "Lumi", turnPlayerId: "plr_first" } },
+    { turn: { turnPlayerName: "Lumi", turnPlayerId: "plr_changed" } },
+    { turn: { turnPlayerName: "Lumi", turnPlayerId: "unknown" } },
+  ]);
+  const second = recording(["Lumi"]);
+  second.append([{ turn: { turnPlayerName: "LUMI", turnPlayerId: "plr_second" } }]);
+  const a = normalizeLiveMatch(database.db, first.captureId);
+  normalizeLiveMatch(database.db, first.captureId);
+  const b = normalizeLiveMatch(database.db, second.captureId);
+  const observations = database.db.select().from(playerIdObservations).all();
+  expect(observations).toHaveLength(3);
+  expect(observations.map((o) => o.atlasPlayerId)).toEqual(["plr_first", "plr_changed", "plr_second"]);
+  expect(new Set(observations.map((o) => o.playerId)).size).toBe(1);
+  expect(observations.map((o) => o.matchId)).toEqual([a.id, a.id, b.id]);
+  expect(observations[2].observedName).toBe("LUMI");
+});
 
 it("reuses match/player IDs, preserves raw events and existing results", () => {
   const recorder = recording([" Lumi ", "LUMI", "AtherVee"], "Finalized mulligan.");

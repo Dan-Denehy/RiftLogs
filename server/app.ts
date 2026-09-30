@@ -7,6 +7,9 @@ import {
   liveAtlasEvents,
   hiddenCardReveals,
   rawAtlasCaptures,
+  playerIdObservations,
+  players,
+  matches,
 } from "./schema.ts";
 
 type BuildAppOptions = {
@@ -45,6 +48,24 @@ export function buildApp(options: BuildAppOptions = {}) {
       .from(liveAtlasCaptures)
       .orderBy(desc(liveAtlasCaptures.startedAt))
       .all();
+  });
+
+  // One row per observed turn-header ID; raw events supply capture time and sequence.
+  app.get("/api/player-id-observations", async () => {
+    return database.db.select({
+      playerId: players.id, displayName: players.displayName,
+      observedName: playerIdObservations.observedName,
+      atlasPlayerId: playerIdObservations.atlasPlayerId,
+      matchId: matches.id, captureId: matches.captureId,
+      roomId: liveAtlasCaptures.roomId,
+      captureSequence: liveAtlasEvents.captureSequence,
+      capturedAt: liveAtlasEvents.capturedAt,
+    }).from(playerIdObservations)
+      .innerJoin(players, eq(players.id, playerIdObservations.playerId))
+      .innerJoin(matches, eq(matches.id, playerIdObservations.matchId))
+      .innerJoin(liveAtlasCaptures, eq(liveAtlasCaptures.id, matches.captureId))
+      .innerJoin(liveAtlasEvents, eq(liveAtlasEvents.id, playerIdObservations.rawEventId))
+      .orderBy(asc(matches.id), asc(liveAtlasEvents.captureSequence)).all();
   });
 
   app.get<{ Params: { captureId: string } }>(

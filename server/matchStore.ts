@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { isInitiatingPhaseText } from "../src/atlasCapture.ts";
 import type { createDatabase } from "./database.ts";
-import { liveAtlasEvents, matches, matchPlayers, players } from "./schema.ts";
+import { liveAtlasEvents, matches, matchPlayers, players, playerIdObservations } from "./schema.ts";
 
 type Database = ReturnType<typeof createDatabase>["db"];
 
@@ -17,6 +17,7 @@ export function normalizeLiveMatch(database: Database, captureId: number) {
       .where(eq(liveAtlasEvents.captureId, captureId))
       .orderBy(asc(liveAtlasEvents.captureSequence)).all();
     const names = new Map<string, string>();
+    const observations: Array<{ rawEventId: number; normalizedName: string; observedName: string; atlasPlayerId: string }> = [];
     let openingCaptured = false;
     for (const row of events) {
       const event = record(JSON.parse(row.rawJson));
@@ -27,6 +28,10 @@ export function normalizeLiveMatch(database: Database, captureId: number) {
         const normalizedName = displayName.toLowerCase();
         if (normalizedName && !["opponent", "self", "you", "unknown"].includes(normalizedName)) {
           names.set(normalizedName, displayName);
+          const atlasPlayerId = typeof turn.turnPlayerId === "string" ? turn.turnPlayerId.trim() : "";
+          if (atlasPlayerId.startsWith("plr_") && atlasPlayerId.length > 4) {
+            observations.push({ rawEventId: row.id, normalizedName, observedName: displayName, atlasPlayerId });
+          }
         }
       }
       const text = [action.actionLabel, action.text]
@@ -44,6 +49,12 @@ export function normalizeLiveMatch(database: Database, captureId: number) {
         .where(eq(players.normalizedName, normalizedName)).get()!;
       transaction.insert(matchPlayers).values({ matchId: match.id, playerId: player.id })
         .onConflictDoNothing().run();
+      for (const observation of observations.filter((item) => item.normalizedName === normalizedName)) {
+        transaction.insert(playerIdObservations).values({
+          rawEventId: observation.rawEventId, matchId: match.id, playerId: player.id,
+          atlasPlayerId: observation.atlasPlayerId, observedName: observation.observedName,
+        }).onConflictDoNothing().run();
+      }
     }
     const participants = transaction.select({
       playerId: players.id, displayName: players.displayName,
