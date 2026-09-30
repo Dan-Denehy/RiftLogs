@@ -60,7 +60,12 @@ V1 includes:
 
 V1 does not include RiftLite replay importing or assume `.json.gz` input.
 
-## Current development milestone
+## Released baseline and next milestone
+
+v0.1.0 is the released capture/reconstruction baseline. The next milestone is
+v0.2.0 state context and visual replay, described in [STATE_CONTEXT_PLAN.md](STATE_CONTEXT_PLAN.md).
+It adds compact board observations alongside raw actions, then reconstructs and displays
+state while stepping forward/backward through the timeline with card images.
 
 This checkpoint includes:
 
@@ -83,9 +88,10 @@ being guessed as units. Derived state never modifies the preserved raw events.
 ## Explicitly deferred
 
 - automatic RiftAtlas login;
-- normalization and state reconstruction;
+- complete rules simulation and advanced statistical dashboards;
 - private-information entry forms;
 - compression;
 - optional RiftLite compatibility.
 
-Live DOM monitoring is deferred from the current checkpoint, but it is required for the authoritative V1 ingestion path because of RiftAtlas's 100-event retention limit.
+Live action monitoring already exists. Compact board-state monitoring is the next
+extension; unknown or hidden state must remain explicit throughout reconstruction.
