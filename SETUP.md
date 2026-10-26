@@ -1,5 +1,22 @@
 # RiftLogs: friends' setup guide (Windows)
 
+## TL;DR — quick start
+
+1. Install **Node.js 24** and **Google Chrome**. Reopen your terminal after installing Node.
+2. Download and extract RiftLogs, or clone the repository. Open the folder containing **`start.cmd`** in VS Code, then choose **Terminal → New Terminal**.
+3. Run:
+
+   ```powershell
+   .\start.cmd
+   ```
+
+4. **Watch a replay:** in the browser, choose **Recorded replays → Open replay file** and select the `.riftlogs-replay.json.gz` file. Do not unzip it. No Atlas login is needed; leave the terminal menu open.
+5. **Record a match:** in the terminal, choose **L** to log into your spectator account, close that dedicated login window, then press Enter. Choose **R**, enter the room code, and wait for recording to start.
+6. **Finish recording:** type **stop**, press Enter, and wait for the save/export messages. Share the compressed file from **`exports`**, not your whole project folder.
+7. Choose **Q** at the terminal menu to quit RiftLogs.
+
+If `start.cmd` cannot be found, you are in the wrong folder or have an outdated copy. Detailed instructions and troubleshooting follow below.
+
 RiftLogs lets you watch shared Riftbound replays or record matches through a
 RiftAtlas spectator account. This is a preview: it replays what the spectator
 could see, not a perfect simulation of every game rule.
