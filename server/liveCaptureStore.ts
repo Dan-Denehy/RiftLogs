@@ -68,6 +68,11 @@ export class LiveCaptureRecorder {
       .where(eq(liveAtlasCaptures.id, this.captureId))
       .run();
   }
+
+  interrupt() {
+    this.database.update(liveAtlasCaptures).set({ status: "interrupted", endedAt: new Date() })
+      .where(eq(liveAtlasCaptures.id, this.captureId)).run();
+  }
 }
 
 function dateFrom(value: string | undefined) {

@@ -84,6 +84,13 @@ export const liveAtlasEvents = sqliteTable(
 );
 
 // Evidence only: Atlas IDs are not assumed to identify a permanent account.
+export const boardObservations = sqliteTable("board_observations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  captureId: integer("capture_id").notNull().references(() => liveAtlasCaptures.id),
+  sequence: integer("sequence").notNull(),
+  rawJson: text("raw_json").notNull(),
+}, (table) => [uniqueIndex("board_observations_capture_sequence_unique").on(table.captureId, table.sequence)]);
+
 export const playerIdObservations = sqliteTable("player_id_observations", {
   rawEventId: integer("raw_event_id").primaryKey().references(() => liveAtlasEvents.id),
   matchId: integer("match_id").notNull().references(() => matches.id),

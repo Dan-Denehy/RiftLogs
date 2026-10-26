@@ -2,6 +2,10 @@ import Fastify from "fastify";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import { createDatabase } from "./database.ts";
 import { normalizeLiveMatch } from "./matchStore.ts";
+import { buildRecordedReplay } from "../src/recordedReplay.ts";
+import type { CompactObservation } from "../src/boardObservation.ts";
+import { protectLocalRequests, developmentPolicy, type LocalRequestPolicy } from "./localRequests.ts";
+import { MAX_CAPTURE_BYTES, readAtlasCapture, validBoardObservation } from "../src/captureValidation.ts";
 import {
   liveAtlasCaptures,
   liveAtlasEvents,
@@ -10,19 +14,22 @@ import {
   playerIdObservations,
   players,
   matches,
+  boardObservations,
 } from "./schema.ts";
 
 type BuildAppOptions = {
   databaseFilename?: string;
   logger?: boolean;
+  localRequestPolicy?: LocalRequestPolicy;
 };
 
 export function buildApp(options: BuildAppOptions = {}) {
   const app = Fastify({
     logger: options.logger ?? false,
-    bodyLimit: 10 * 1024 * 1024,
+    bodyLimit: MAX_CAPTURE_BYTES,
   });
   const database = createDatabase(options.databaseFilename);
+  protectLocalRequests(app, options.localRequestPolicy ?? developmentPolicy);
 
   app.addContentTypeParser(
     "application/vnd.riftlogs.atlas+json",
@@ -50,6 +57,35 @@ export function buildApp(options: BuildAppOptions = {}) {
       .all();
   });
 
+  app.get("/api/board-replays", async () => {
+    return database.db.select({ id: liveAtlasCaptures.id, roomId: liveAtlasCaptures.roomId,
+      status: liveAtlasCaptures.status, startedAt: liveAtlasCaptures.startedAt,
+      observationCount: sql<number>`count(${boardObservations.id})` })
+      .from(liveAtlasCaptures).innerJoin(boardObservations, eq(boardObservations.captureId, liveAtlasCaptures.id))
+      .groupBy(liveAtlasCaptures.id).orderBy(desc(liveAtlasCaptures.id)).all();
+  });
+  app.get<{ Params: { captureId: string } }>("/api/board-replays/:captureId", async (request, reply) => {
+    const captureId = parseCaptureId(request.params.captureId);
+    if (!Number.isSafeInteger(captureId)) return reply.code(400).send({ error: "Invalid capture ID." });
+    const capture = database.db.select().from(liveAtlasCaptures).where(eq(liveAtlasCaptures.id, captureId)).get();
+    if (!capture) return reply.code(404).send({ error: "Capture not found." });
+    const size = database.db.select({ count: sql<number>`count(*)`, bytes: sql<number>`coalesce(sum(length(cast(${boardObservations.rawJson} as blob))), 0)` })
+      .from(boardObservations).where(eq(boardObservations.captureId, captureId)).get()!;
+    if (size.count > 2000 || size.bytes > 64 * 1024 * 1024) return reply.code(413).send({ error: "Replay exceeds the current loading limit (2,000 observations / 64 MiB). Raw data is unchanged." });
+    const rows = database.db.select().from(boardObservations).where(eq(boardObservations.captureId, captureId))
+      .orderBy(asc(boardObservations.sequence)).all();
+    try {
+      const observations: CompactObservation[] = rows.map((row) => {
+        const item: unknown = JSON.parse(row.rawJson);
+        if (!validBoardObservation(item)) throw new Error("Invalid observation");
+        return item;
+      });
+      return { captureId, games: buildRecordedReplay(observations) };
+    } catch {
+      return reply.code(422).send({ error: "Replay contains invalid observations or exceeds safe replay expansion limits. Raw data is unchanged." });
+    }
+  });
+
   // One row per observed turn-header ID; raw events supply capture time and sequence.
   app.get("/api/player-id-observations", async () => {
     return database.db.select({
@@ -71,8 +107,8 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.get<{ Params: { captureId: string } }>(
     "/api/live-captures/:captureId",
     async (request, reply) => {
-      const captureId = Number.parseInt(request.params.captureId, 10);
-      if (!Number.isInteger(captureId) || captureId < 1) {
+      const captureId = parseCaptureId(request.params.captureId);
+      if (!Number.isSafeInteger(captureId) || captureId < 1) {
         return reply.code(400).send({ error: "Invalid capture ID." });
       }
 
@@ -113,17 +149,17 @@ export function buildApp(options: BuildAppOptions = {}) {
     Params: { captureId: string };
     Body: { actionSequence?: unknown; hiddenCardId?: unknown };
   }>("/api/live-captures/:captureId/hidden-card-reveal", async (request, reply) => {
-    const captureId = Number.parseInt(request.params.captureId, 10);
+    const captureId = parseCaptureId(request.params.captureId);
     const actionSequence = request.body?.actionSequence;
     const hiddenCardId = request.body?.hiddenCardId;
     if (
-      !Number.isInteger(captureId) ||
+      !Number.isSafeInteger(captureId) ||
       captureId < 1 ||
       typeof actionSequence !== "number" ||
-      !Number.isInteger(actionSequence) ||
+      !Number.isSafeInteger(actionSequence) ||
       actionSequence < 1 ||
       typeof hiddenCardId !== "string" ||
-      hiddenCardId.length === 0
+      hiddenCardId.length === 0 || hiddenCardId.length > 256 || /[\x00-\x1f]/.test(hiddenCardId)
     ) {
       return reply.code(400).send({ error: "Invalid hidden-card correction." });
     }
@@ -145,21 +181,16 @@ export function buildApp(options: BuildAppOptions = {}) {
       return reply.code(400).send({ error: "Expected raw Atlas JSON text." });
     }
 
-    let capture: unknown;
+    let capture;
     try {
-      capture = JSON.parse(request.body);
+      capture = readAtlasCapture(request.body);
     } catch {
-      return reply.code(400).send({ error: "The selected file is not valid JSON." });
-    }
-
-    if (!isAtlasCapture(capture)) {
-      return reply.code(400).send({
-        error: "This is not a RiftLogs Atlas DOM capture.",
-      });
+      return reply.code(400).send({ error: "Invalid Atlas capture. Check its format and limits: 10 MiB, 500 turns, 10,000 actions." });
     }
 
     const encodedFilename = request.headers["x-riftlogs-filename"];
     const filename = decodeFilename(encodedFilename);
+    if (filename.length > 255 || /[\x00-\x1f]/.test(filename)) return reply.code(400).send({ error: "Invalid capture filename." });
     const [saved] = await database.db
       .insert(rawAtlasCaptures)
       .values({
@@ -178,8 +209,8 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.get<{ Params: { captureId: string } }>(
     "/api/atlas-captures/:captureId/raw",
     async (request, reply) => {
-      const captureId = Number.parseInt(request.params.captureId, 10);
-      if (!Number.isInteger(captureId) || captureId < 1) {
+      const captureId = parseCaptureId(request.params.captureId);
+      if (!Number.isSafeInteger(captureId) || captureId < 1) {
         return reply.code(400).send({ error: "Invalid capture ID." });
       }
 
@@ -204,25 +235,8 @@ export function buildApp(options: BuildAppOptions = {}) {
   return app;
 }
 
-function isAtlasCapture(value: unknown): value is { turns: unknown[] } {
-  if (typeof value !== "object" || value === null) return false;
-
-  const candidate = value as Record<string, unknown>;
-  const isRiftLogsCapture =
-    candidate.format === "riftlogs-atlas-dom-capture" &&
-    candidate.formatVersion === 1 &&
-    Array.isArray(candidate.turns);
-  const isOriginalDomCapture =
-    candidate.source === "riftatlas-dom" &&
-    Array.isArray(candidate.turns) &&
-    candidate.turns.every(
-      (turn) =>
-        typeof turn === "object" &&
-        turn !== null &&
-        typeof (turn as Record<string, unknown>).html === "string",
-    );
-
-  return isRiftLogsCapture || isOriginalDomCapture;
+function parseCaptureId(value: string) {
+  return /^[1-9]\d{0,15}$/.test(value) ? Number(value) : Number.NaN;
 }
 
 function decodeFilename(value: string | string[] | undefined) {

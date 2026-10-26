@@ -9,6 +9,14 @@ let database: ReturnType<typeof createDatabase> | undefined;
 afterEach(() => database?.close());
 
 describe("LiveCaptureRecorder", () => {
+  it("retains saved events and marks an early close as interrupted", () => {
+    database = createDatabase(":memory:");
+    const recorder = LiveCaptureRecorder.start(database.db, { roomId: "TEST", sourceUrl: "https://play.riftatlas.com/game" });
+    recorder.append([{ action: { text: "Saved action" } }]);
+    recorder.interrupt();
+    expect(database.db.select().from(liveAtlasCaptures).get()).toMatchObject({ status: "interrupted", eventCount: 1 });
+    expect(database.db.select().from(liveAtlasEvents).all()).toHaveLength(1);
+  });
   it("keeps repeated identical raw events as separate ordered rows", () => {
     database = createDatabase(":memory:");
     const recorder = LiveCaptureRecorder.start(database.db, {

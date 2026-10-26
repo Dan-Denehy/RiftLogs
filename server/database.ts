@@ -79,6 +79,14 @@ export function createDatabase(filename = "riftlogs.db") {
       updated_at INTEGER NOT NULL,
       PRIMARY KEY (capture_id, action_sequence)
     );
+
+    CREATE TABLE IF NOT EXISTS board_observations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      capture_id INTEGER NOT NULL REFERENCES live_atlas_captures(id),
+      sequence INTEGER NOT NULL,
+      raw_json TEXT NOT NULL,
+      UNIQUE (capture_id, sequence)
+    );
   `);
 
   return {
