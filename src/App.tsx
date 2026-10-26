@@ -16,6 +16,7 @@ import {
   reconstructMatchState,
   type MatchStateSnapshot,
 } from "./matchState";
+import { MAX_CAPTURE_BYTES } from "./captureValidation";
 
 type ApiStatus = "checking" | "connected" | "unavailable";
 
@@ -142,6 +143,7 @@ export default function App() {
     setImportState({ kind: "saving", message: "Reading and saving capture…" });
 
     try {
+      if (file.size > MAX_CAPTURE_BYTES) throw new Error("Capture exceeds the 10 MiB limit. Choose a smaller capture.");
       const rawJson = await file.text();
       const parsed = parseAtlasCapture(rawJson);
 

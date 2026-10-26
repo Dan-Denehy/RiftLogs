@@ -93,5 +93,8 @@ being guessed as units. Derived state never modifies the preserved raw events.
 - compression;
 - optional RiftLite compatibility.
 
-Live action monitoring already exists. Compact board-state monitoring is the next
-extension; unknown or hidden state must remain explicit throughout reconstruction.
+Live action and compact board-state monitoring now coexist. The recorded replay
+viewer displays visible-board checkpoints and explicitly unverified action intervals.
+Room/setup boundaries separate games, and reset/rewind observations preserve prior
+history. Hand counts, attachment relationships and action-to-checkpoint interpretation
+remain unverified in real recorded replays; unknown or hidden state stays explicit.

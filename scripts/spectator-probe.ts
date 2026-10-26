@@ -3,6 +3,10 @@ import { createInterface } from "node:readline/promises";
 import { chromium, type BrowserContext } from "playwright";
 import { createDatabase } from "../server/database.ts";
 import { startFullDomCapture } from "./fullDomCapture.ts";
+import { startCompactBoardCapture } from "./compactBoardCapture.ts";
+import { saveObservation } from "../server/boardObservationStore.ts";
+import { waitForRecordingStop } from "./recordingStop.ts";
+import { exportSharedReplay } from "./sharedReplayExport.ts";
 import {
   LiveCaptureRecorder,
   type RawLiveAtlasEvent,
@@ -43,7 +47,7 @@ const profileDirectory = path.resolve(".riftlogs-spectator-profile");
 let context: BrowserContext;
 try {
   context = await chromium.launchPersistentContext(profileDirectory, {
-    channel: "chrome",
+    ...(process.env.RIFTLOGS_CHROME_PATH ? { executablePath: process.env.RIFTLOGS_CHROME_PATH } : { channel: "chrome" }),
     headless: false,
     viewport: null,
   });
@@ -55,7 +59,9 @@ try {
     );
     process.exit(1);
   }
-  throw error;
+  console.error("Could not open the spectator browser. Install Google Chrome and close any previous RiftLogs Chrome window. Then try Start again.");
+  console.error(message);
+  process.exit(1);
 }
 
 const existingPages = context.pages();
@@ -86,6 +92,8 @@ console.log("Opening RiftAtlas in the dedicated spectator profile…");
 const fullCapture = process.env.RIFTLOGS_FULL_CAPTURE === "1"
   ? await startFullDomCapture(page, roomId) : null;
 if (fullCapture) console.log(`Full DOM recording: ${fullCapture.filename}`);
+try {
+console.log("If a login or Cloudflare check appears, cancel and choose Login in Start. Recording has not started yet.");
 await page.goto("https://play.riftatlas.com/game", {
   waitUntil: "domcontentloaded",
 });
@@ -97,10 +105,10 @@ console.log(`Joining room ${roomId} as a spectator...`);
 // Start at the lobby explicitly rather than accepting an old match as the requested room.
 await page.goto("https://play.riftatlas.com/", { waitUntil: "domcontentloaded" });
 const roomInput = page.getByPlaceholder("AB12CD", { exact: true });
-await roomInput.waitFor({ state: "visible", timeout: 120_000 });
+await roomInput.waitFor({ state: "visible", timeout: 30_000 });
 await roomInput.fill(roomId);
 console.log(`Room code entered: ${roomId}`);
-await page.getByRole("button", { name: "Join / Spectate", exact: true }).click({ timeout: 120_000 });
+await page.getByRole("button", { name: "Join / Spectate", exact: true }).click({ timeout: 30_000 });
 console.log("Join / Spectate submitted. Waiting for the match log...");
 
 console.log("Waiting for the RiftAtlas match log…");
@@ -108,27 +116,22 @@ console.log("Waiting for the RiftAtlas match log…");
 await page
   .locator('[data-match-log-group], li:has([data-log-action-placeholder="true"])')
   .first()
-  .waitFor({ state: "attached", timeout: 120_000 });
+  .waitFor({ state: "attached", timeout: 30_000 });
 console.log(`Match log detected after joining room ${roomId}.`);
+} catch (error) {
+  console.error("Recording could not start. Check the room code, that the match exists, and that its log panel is open. If signed out or blocked by Cloudflare, choose Login in Start, sign in manually, close that Chrome window, then retry. A saved login does not guarantee Cloudflare will allow automation.");
+  console.error(error instanceof Error ? error.message.split("\n")[0] : String(error));
+  await context.close().catch(() => undefined);
+  if (fullCapture) fullCapture.finish();
+  process.exit(1);
+}
 
 if (fullCapture) {
-  console.log("Full DOM capture active. Keep this browser open across all games; join the next room manually if needed. Ctrl+C stops the series capture.");
-  await new Promise<void>((resolve) => {
-    let stopping = false;
-    const stop = async () => {
-      if (stopping) return;
-      stopping = true;
-      await fullCapture.flush().catch((error) => console.error("Final snapshot failed:", error));
-      await context.close().catch(() => undefined);
-      resolve();
-    };
-    process.once("SIGINT", () => void stop());
-    process.once("SIGTERM", () => void stop());
-    page.once("close", () => void stop());
-  });
+  console.log("Full DOM capture active. Keep this browser open across all games; join the next room manually if needed.");
+  const complete = await waitForRecordingStop(page, context, () => fullCapture.flush());
   fullCapture.finish();
-  console.log(`Full DOM capture saved: ${fullCapture.filename}`);
-  process.exit(0);
+  console.log(`${complete ? "Full DOM capture saved" : "Partial DOM capture retained; final snapshot was not confirmed"}: ${fullCapture.filename}`);
+  process.exit(complete ? 0 : 1);
 }
 
 const database = createDatabase();
@@ -152,13 +155,18 @@ await page.exposeBinding(
 );
 
 console.log(`Recording live capture #${recorder.captureId} in riftlogs.db.`);
+const boardCapture = await startCompactBoardCapture(page, (observation) => {
+  saveObservation(database.db, recorder.captureId, observation);
+});
+console.log("Compact board recording active (cards, scores, runes, turn checkpoints). Keep this window open across the series.");
 
-const foundInitialAction = await page.evaluate(async () => {
+const installActionCollector = async () => {
   type ActionReporter = (action: LatestAction) => Promise<void>;
   type EventRecorder = (events: RawLiveAtlasEvent[]) => Promise<number[]>;
   const bindings = window as unknown as {
     reportRiftLogsAction: ActionReporter;
     recordRiftLogsEvents: EventRecorder;
+    flushRiftLogsActions?: () => Promise<boolean>;
   };
   const report = bindings.reportRiftLogsAction;
   const record = bindings.recordRiftLogsEvents;
@@ -613,9 +621,19 @@ const foundInitialAction = await page.evaluate(async () => {
   };
 
   const foundAction = await scan();
+  let pendingScan = Promise.resolve(foundAction);
+  const queueScan = () => { pendingScan = pendingScan.then(scan); return pendingScan; };
+  bindings.flushRiftLogsActions = () => {
+    observer.disconnect();
+    window.clearTimeout(scanTimer); scanTimer = undefined;
+    return queueScan();
+  };
   const observer = new MutationObserver(() => {
-    window.clearTimeout(scanTimer);
-    scanTimer = window.setTimeout(() => void scan(), 75);
+    // Continuous animations must not postpone raw-action capture indefinitely.
+    scanTimer ??= window.setTimeout(() => {
+      scanTimer = undefined;
+      void queueScan().catch((error) => console.error("Raw action scan failed:", error));
+    }, 75);
   });
   observer.observe(document.body, {
     childList: true,
@@ -626,30 +644,43 @@ const foundInitialAction = await page.evaluate(async () => {
   });
 
   return foundAction;
-});
+};
+await page.addInitScript({ content: `document.addEventListener("DOMContentLoaded", () => { (${installActionCollector.toString()})(); }, { once: true });` });
+const foundInitialAction = await page.evaluate(installActionCollector);
 
 if (foundInitialAction) {
   console.log("Latest retained action printed above. Watching for new actions.");
 } else {
   console.log("Match log detected, but it has no action yet. Watching for the first action.");
 }
-console.log("Close the browser or press Ctrl+C to stop.");
-
-await new Promise<void>((resolve) => {
-  let stopping = false;
-  const stop = async () => {
-    if (stopping) return;
-    stopping = true;
-    console.log("\nStopping spectator probe…");
-    await context.close().catch(() => undefined);
-    resolve();
-  };
-
-  process.once("SIGINT", () => void stop());
-  process.once("SIGTERM", () => void stop());
-  page.once("close", () => resolve());
+const cleanStop = await waitForRecordingStop(page, context, async () => {
+  console.log("Saving final actions and board state...");
+  const results = await Promise.allSettled([
+    page.evaluate(async () => {
+      const flush = (window as unknown as { flushRiftLogsActions?: () => Promise<boolean> }).flushRiftLogsActions;
+      if (!flush) throw new Error("Action collector unavailable during final save.");
+      await flush();
+    }),
+    boardCapture.flush(true),
+  ]);
+  const failure = results.find((result) => result.status === "rejected");
+  if (failure?.status === "rejected") throw failure.reason;
 });
 
-recorder.complete();
+if (cleanStop && !boardCapture.failed()) recorder.complete();
+else recorder.interrupt();
 database.close();
-console.log(`Live capture #${recorder.captureId} completed and saved.`);
+console.log(`${boardCapture.count()} compact board observations saved.`);
+if (!cleanStop || boardCapture.failed()) {
+  console.error(`Live capture #${recorder.captureId} is partial (interrupted). Previously saved data is kept; the final actions may be missing.`);
+  process.exitCode = 1;
+} else {
+  console.log(`Live capture #${recorder.captureId} completed and saved.`);
+  try {
+    const exported = exportSharedReplay(recorder.captureId);
+    console.log(`Shared replay saved: ${exported.output} (${Math.ceil(exported.bytes / 1024)} KiB)`);
+  } catch (error) {
+    console.error("Recording is saved, but the compressed export failed:", error instanceof Error ? error.message : error);
+    console.error(`Retry with: node scripts/export-shared-replay.ts ${recorder.captureId}`);
+  }
+}

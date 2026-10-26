@@ -1,10 +1,16 @@
 export type Section = "context" | "scores" | "resources" | "cards";
 export const allSections: Section[] = ["context", "scores", "resources", "cards"];
 export type ResourceState = { ready: number | null; used: number | null; hand: number | null; deck: number | null };
+export type BattlefieldMight = {
+  zone: string | null; playerId: string | null; side: string | null;
+  value: number | null; rawValue: string | null; ariaLabel: string | null; title: string | null;
+};
 export type BoardCard = {
   cardType?: "unit" | "equipment" | "unknown";
   id: string; name: string | null; ownerId: string; zone: string;
   hidden: boolean | null; exhausted: boolean | null; attachedTo: string | null;
+  imageUrl?: string | null;
+  imageFallbackUrl?: string | null;
 };
 
 // Ordinary board movement exhausts the moving unit. Zone transfers such as
@@ -13,7 +19,13 @@ export function isBoardMove(from: string, to: string): boolean {
   const isBoard = (zone: string) => zone === "base" || zone.startsWith("battlefield");
   return from !== to && isBoard(from) && isBoard(to);
 }
+export type ChainEntry = {
+  id: string; position: number | null; ownerId: string | null; newest: boolean | null;
+  name: string | null; hidden: boolean; imageUrl: string | null; imageFallbackUrl: string | null;
+};
 export type BoardState = {
+  // undefined/null = not captured; [] = an observed empty chain. Stored with cards.
+  chain?: ChainEntry[] | null;
   context: { turn: number | null; activePlayerId: string | null };
   players: Record<string, string>;
   scores: Record<string, number | null>;
@@ -21,6 +33,10 @@ export type BoardState = {
   turnActivity?: Record<string, { cardsGained: number; runesRecycled: number }>;
   // null means this area could not be read; [] means a confirmed empty board.
   cards: BoardCard[] | null;
+  // Captured with the cards section. Optional for older recordings; not a rules calculation.
+  battlefieldMight?: BattlefieldMight[];
+  battlefieldNames?: Record<string, string>;
+  battlefieldImages?: Record<string, string>;
 };
 export type Observation = {
   formatVersion: 1; sequence: number; capturedAt: string;
@@ -40,8 +56,11 @@ export type ReplayAction = { sequence: number; text: string; actorId?: string } 
 );
 export type Flag = { path: string; expected: unknown; observed: unknown; status: "mismatch" | "unable-to-verify" };
 export type ReplayStep = {
+  superseded?: boolean;
   action: ReplayAction; state: BoardState; predicted: BoardState;
   flags: Flag[]; observationSequence: number | null; verifiedPaths: string[];
+  note?: string;
+  timestamp?: string;
 };
 
 export function chooseUpdateSections(action: ReplayAction): Section[] {
@@ -142,6 +161,13 @@ export function reconcileCheckpoint(predicted: BoardState, observation: Observat
     Object.assign(state, { [section]: reconcile(predicted[section], observation.state[section], section) });
   }
   state.players = { ...state.players, ...observation.state.players };
+  if (observation.sections.includes("cards")) {
+    // Observed UI totals have no rules-engine prediction to compare against.
+    state.battlefieldMight = structuredClone(observation.state.battlefieldMight ?? []);
+    state.battlefieldNames = structuredClone(observation.state.battlefieldNames ?? {});
+    state.battlefieldImages = structuredClone(observation.state.battlefieldImages ?? {});
+    state.chain = structuredClone(observation.state.chain ?? null);
+  }
   return { state, flags, verifiedPaths };
 }
 
@@ -151,7 +177,11 @@ export function diffObservations(previous: Observation | null, next: Observation
     if (value && typeof value === "object") return JSON.stringify(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)]));
     return JSON.stringify(value);
   };
-  return next.sections.filter((section) => !previous || !previous.sections.includes(section) || canonical(previous.state[section]) !== canonical(next.state[section]) || canonical(previous.state.players) !== canonical(next.state.players));
+  return next.sections.filter((section) => !previous || !previous.sections.includes(section) || canonical(previous.state[section]) !== canonical(next.state[section]) || canonical(previous.state.players) !== canonical(next.state.players) ||
+    (section === "cards" && (canonical(previous.state.battlefieldMight) !== canonical(next.state.battlefieldMight) ||
+      canonical(previous.state.battlefieldNames) !== canonical(next.state.battlefieldNames) ||
+      canonical(previous.state.battlefieldImages) !== canonical(next.state.battlefieldImages) ||
+      canonical(previous.state.chain) !== canonical(next.state.chain))));
 }
 
 export function buildReplay(initial: BoardState, entries: Array<{ action: ReplayAction; observation?: Observation }>): ReplayStep[] {

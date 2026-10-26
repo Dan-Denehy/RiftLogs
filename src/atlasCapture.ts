@@ -1,3 +1,5 @@
+import { readAtlasCapture, validAtlasCapture } from "./captureValidation.ts";
+
 export type CapturedCard = {
   name?: string | null;
   art?: string | null;
@@ -122,10 +124,7 @@ export type LiveAtlasEventRow = {
 };
 
 export function parseAtlasCapture(rawJson: string) {
-  const parsed: unknown = JSON.parse(rawJson);
-  if (!isAtlasCapture(parsed)) {
-    throw new Error("The file is not a supported RiftAtlas DOM capture.");
-  }
+  const parsed = readAtlasCapture(rawJson);
 
   return {
     capture: parsed,
@@ -258,25 +257,7 @@ export function analyzeCaptureCompleteness(turns: DisplayTurn[]) {
 }
 
 export function isAtlasCapture(value: unknown): value is AtlasCapture {
-  if (!isRecord(value)) return false;
-
-  if (
-    value.format === "riftlogs-atlas-dom-capture" &&
-    value.formatVersion === 1 &&
-    Array.isArray(value.turns)
-  ) {
-    return value.turns.every(
-      (turn) => isRecord(turn) && Array.isArray(turn.actions),
-    );
-  }
-
-  return (
-    value.source === "riftatlas-dom" &&
-    Array.isArray(value.turns) &&
-    value.turns.every(
-      (turn) => isRecord(turn) && typeof turn.html === "string",
-    )
-  );
+  return validAtlasCapture(value);
 }
 
 export function normalizeRgbKey(color: string | null | undefined) {

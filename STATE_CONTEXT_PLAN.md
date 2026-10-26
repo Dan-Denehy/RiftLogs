@@ -1,7 +1,10 @@
 # v0.2.0: State context and match replay
 
-Baseline: released v0.1.0. Branch: `feature/state-context-v0.2.0`.
-Status: planning; implementation has not started. Keep package version at 0.1.0
+Baseline: released v0.1.0. Replay release branch: `release/replay-v0.2.0`.
+The narrowed release scope and approval gates are in [REPLAY_RELEASE.md](REPLAY_RELEASE.md).
+The broader roadmap below remains reference material, not a requirement to finish
+statistics or full simulation before the replay-only release.
+Status: observational replay prototype implemented; release work remains. Keep package version at 0.1.0
 until the new milestone passes its release checks.
 
 ## Product outcome
@@ -135,5 +138,58 @@ first/last navigation and a partially captured game. Run a local browser UI chec
 - Statistics: average first-play turn, game win rates when played/by timing,
   sample counts and incomplete-capture filtering; distinguish games from series.
 
-Next implementation task: Phase 1 types, minimal sanitized fixtures and a pure DOM
-extractor for player mapping, phase, scores, runes and deck counts.
+## Current implementation checkpoint
+
+### Next replay improvements
+
+- Implemented: capture names from board marker image alt text keyed by battlefield
+  zone. Replay headings, accessible labels and move controls use those names; missing
+  or ambiguous names fall back to Battlefield A/B. Older captures need re-extraction
+  from their original full DOM to gain names; saved raw observations are not rewritten.
+- Keep observations as internal state checkpoints; hide them from normal action
+  navigation and expose them in debugging mode without implying exact timing.
+- Log public card reveals, including reveals during look actions. Looking alone
+  does not reveal private identities; later reveals must not alter earlier states.
+- Capture and display Atlas's observed Might total for each player on each battlefield.
+  Retain the observation sequence/time and any face-down/unreadable qualifiers;
+  missing totals remain unknown, not zero. Keep observed totals separate from any
+  future calculations, and do not derive hidden card identities from those totals.
+  Implemented on 2026-10-05 from the supplied DOM example: zone and player come from
+  `data-battlefield-might-zone` / `data-battlefield-might-player`; the numeric total
+  comes from the nested `data-battlefield-might-value`. The collector retains raw
+  value, side, aria-label and tooltip alongside the observation sequence/time.
+  The viewer shows Observed Might per player/battlefield, with the tooltip's scope:
+  face-up units, fixed equipment bonuses unless overridden by a white counter;
+  buff markers and red counters are ignored. Local edits do not recalculate it.
+  Earlier inspection found Might translation labels
+  in bundled page data but no rendered "might" text/attributes in the 2,790 Bo3
+  snapshots underlying capture #8 or the 15 snapshots in the newer September 29
+  incognito file. Numeric totals without those labels remain unverified. Older
+  compact captures have no battlefield Might field and display unknown; originals
+  stay unchanged. Verify both players' totals during the next live match.
+
+### Implemented foundation
+
+- Pure DOM extraction now reads visible card IDs, names, owner mapping, zones,
+  `data-exhausted` and `data-face-down` alongside scores/runes/deck counts.
+  `data-visual-hidden` is animation state, not face-down state.
+- Spectator recording persists immutable compact observations. Initial, turn,
+  phase and reset boundaries save every section; other writes contain changed sections.
+- Full-capture JSONL snapshots can be streamed into a separate recording, with
+  source-sequence references. The original files stay untouched.
+- Recorded replays use an Atlas-inspired image board: opposing bases, rune areas,
+  legend/champion/trash, shared battlefield lanes, score/resource headers and a
+  replay sidebar. Flip-board and local move/tap experiments preserve ownership.
+  Card/battlefield images use captured HTTPS URLs, with image-error fallbacks and
+  hidden-card backs. Older recordings retain text fallbacks. Room/setup segments
+  and rewind checkpoints remain separate from visual presentation.
+- An action without an aligned snapshot is labelled unverified. Later observations
+  are not assigned to all earlier actions. Missing visible cards do not imply deaths.
+
+This is an observational replay, not completion of every v0.2.0 release criterion.
+Next: connect the action interpreter to these physical card IDs, validate hand counts
+and equipment attachments, compare predicted turn states with observed checkpoints,
+add bounded timeline loading, and validate a fresh complete image-enabled match. The legacy `matches` table still has
+one capture per match; multi-game segments here are derived replay data, not yet
+normalized match rows suitable for statistics. Hidden DOM slot IDs are placeholders,
+not stable physical-card identities. Private state and unsupported facts stay unknown.

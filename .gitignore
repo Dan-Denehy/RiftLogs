@@ -10,3 +10,4 @@ logs/*.json
 logs/full-log-capture/
 .playwright-profile/
 .riftlogs-spectator-profile/
+exports/

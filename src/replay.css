@@ -1,42 +1,155 @@
-.workspace-nav { display:flex; gap:12px; align-items:center; padding:14px 24px; border-bottom:1px solid #334155; }
-.workspace-nav strong { margin-right:auto; }
-.workspace-nav button[aria-pressed=true] { background:#275d56; color:white; }
-.replay-shell { max-width:1600px; margin:auto; padding:24px; }
+.workspace-nav { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:12px 24px; border-bottom:1px solid #29394c; background:#0b1420; }
+.workspace-nav strong { margin-right:auto; letter-spacing:.04em; }
+.workspace-nav button[aria-pressed=true] { background:#245752; color:white; }
+.replay-shell { max-width:1920px; margin:auto; padding:20px; }
 .replay-heading { display:flex; justify-content:space-between; align-items:center; gap:20px; }
-.replay-heading h1 { margin:4px 0; font-size:2rem; }
-.replay-badge { border:1px solid #708b87; border-radius:20px; padding:8px 14px; white-space:nowrap; }
-.replay-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:20px 0; }
-.replay-toolbar label { flex:1; min-width:220px; }
-.replay-shell button,.workspace-nav button,.replay-shell select { font:inherit; border:1px solid #64748b; border-radius:6px; padding:8px 10px; background:#142632; color:#edf4f7; cursor:pointer; }
+.replay-heading h1,.recorded-controls h1 { margin:4px 0 8px; font-size:1.8rem; line-height:1.2; letter-spacing:-.025em; }
+.replay-heading p { margin-bottom:6px; }
+.replay-heading .eyebrow { font-size:.65rem; color:#99b9c6; }
+.replay-badge { border:1px solid #557e77; border-radius:20px; padding:7px 12px; font-size:.75rem; white-space:nowrap; }
+.replay-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:16px 0; font-size:.85rem; }
+.replay-toolbar label { flex:1; min-width:180px; }
+.replay-shell button,.workspace-nav button,.replay-shell select { font:inherit; border:1px solid #455b70; border-radius:5px; padding:8px 10px; background:#152433; color:#edf4f7; cursor:pointer; }
+.replay-shell button:hover:not(:disabled),.workspace-nav button:hover { border-color:#88b4b2; }
 .replay-shell button:disabled { opacity:.4; cursor:not-allowed; }
-.replay-shell select { max-width:100%; }
-.replay-toolbar select { width:calc(100% - 65px); }
+.replay-shell select { max-width:100%; min-width:0; }
+.replay-toolbar select { width:calc(100% - 45px); }
 .replay-shell button:focus-visible,.replay-shell select:focus-visible { outline:3px solid #77e1c6; outline-offset:3px; }
-.replay-layout { display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:20px; }
-.replay-board { min-width:0; }
-.replay-turn { padding:12px; background:#233e42; border-radius:8px; color:#efffff; }
-.replay-player { border:1px solid #536675; border-radius:10px; padding:16px; margin-top:16px; background:#11212b; color:#edf4f7; }
-.replay-player h2 { font-size:1.2rem; margin:0 0 10px; }
-.replay-resources { display:flex; flex-wrap:wrap; gap:10px 20px; color:#c1d4df; font-size:.9rem; }
-.replay-zones { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:16px; }
-.replay-zone { min-height:140px; border:1px dashed #466171; border-radius:8px; padding:10px; background:#0c1922; }
-.replay-zone h3 { margin:0 0 10px; font-size:.85rem; color:#95bebc; }
-.replay-card-list { display:flex; flex-wrap:wrap; gap:10px; }
-.replay-card-wrap { width:126px; }
-.replay-shell .replay-card { display:flex; flex-direction:column; justify-content:space-between; gap:10px; width:126px; min-height:120px; text-align:left; border:2px solid #698caa; background:#263e52; }
-.replay-card small { font-size:.7rem; }
-.replay-shell .replay-card.is-tapped { background:repeating-linear-gradient(135deg,#493b25,#493b25 9px,#3c3325 9px,#3c3325 18px); border-color:#e6b568; }
-.replay-shell .replay-card.is-selected { outline:3px solid #74e1ba; outline-offset:2px; }
-.replay-shell .replay-equipment { font-size:.7rem; width:100%; margin-top:6px; background:#394137; }
-.replay-empty,.replay-note { font-size:.82rem; color:#91a9b7; }
-.replay-sidebar > section { padding:16px; background:#11212b; color:#e5eef4; border:1px solid #536675; border-radius:10px; margin-bottom:14px; }
-.replay-sidebar h2 { margin:0 0 12px; font-size:1.05rem; }
-.replay-sidebar label { display:block; margin-bottom:12px; }
-.replay-sidebar small { font-size:.76rem; color:#afc1cb; }
+.replay-layout { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:16px; align-items:start; }
+.replay-board { --card-width:94px; min-width:0; padding:12px; border:1px solid #314354; border-radius:12px; background:radial-gradient(ellipse at center,#1b3035 0%,#101f2b 48%,#0a1421 100%); box-shadow:inset 0 0 80px #03081188; }
+.replay-turn { padding:8px 12px; border:1px solid #496261; background:#183735; color:#d1e7dd; border-radius:5px; font-size:.8rem; text-align:center; }
+.side-top { --side-color:#e3b67c; }
+.side-bottom { --side-color:#89d8bd; }
+.replay-player { margin:12px 0; color:#edf4f7; min-width:0; }
+.player-identity { display:flex; align-items:center; gap:12px; padding:8px 10px; border-left:3px solid var(--side-color); background:#08111bc4; border-radius:5px; }
+.replay-player h2 { margin:0 0 4px; color:var(--side-color); font-size:1.05rem; }
+.player-score { min-width:45px; text-align:center; font-size:1.65rem; font-weight:800; line-height:1; color:var(--side-color); }
+.player-score small { display:block; font-size:.48rem; letter-spacing:.12em; margin-top:5px; }
+.active-turn-label { display:inline-block; margin-left:8px; font-size:.55rem; letter-spacing:.06em; text-transform:uppercase; border:1px solid #49645c; padding:3px 5px; border-radius:3px; vertical-align:middle; }
+.replay-resources { display:flex; flex-wrap:wrap; gap:6px 16px; color:#acbccb; font-size:.74rem; }
+.replay-resources b { color:#f2f5fa; }
+.turn-counters { margin:0 0 0 auto; text-align:right; font-size:.66rem; line-height:1.6; color:#9fb5bd; }
+.player-zone-grid { display:grid; grid-template-columns:minmax(110px,.9fr) minmax(0,3fr) minmax(150px,1.2fr); gap:8px; margin-top:8px; }
+.replay-zone { min-width:0; padding:8px; border:1px solid #344654; border-radius:5px; background:#08132165; }
+.zone-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; color:#98adb8; }
+.zone-heading h3 { font-size:.66rem; font-weight:650; text-transform:uppercase; letter-spacing:.12em; }
+.zone-heading > span { font-size:.65rem; color:var(--side-color); }
+.zone-heading small { font-size:.61rem; color:#aabbbd; }
+.zone-heading b { font-size:.84rem; color:var(--side-color); }
+.replay-card-list { display:flex; flex-wrap:wrap; align-items:flex-start; gap:8px; min-width:0; }
+.replay-card-wrap { width:var(--card-width); flex:0 0 var(--card-width); min-width:0; }
+.replay-shell .replay-card { position:relative; display:block; width:100%; padding:0; border:1px solid #67818d; border-radius:6px; overflow:hidden; background:#112435; text-align:left; box-shadow:0 3px 8px #0007; }
+.card-artwork { display:block; position:relative; width:100%; aspect-ratio:5/7; background:#142535; overflow:hidden; border-radius:4px; }
+.card-artwork img { display:block; width:100%; height:100%; object-fit:contain; }
+.card-artwork.is-landscape { aspect-ratio:1.4; }
+.card-artwork-fallback { display:flex; height:100%; flex-direction:column; align-items:center; justify-content:center; gap:5px; padding:8px; text-align:center; background:linear-gradient(145deg,#203a49,#0b1928); }
+.card-artwork-fallback strong { font-size:.72rem; line-height:1.25; overflow-wrap:anywhere; }
+.card-artwork-fallback small { font-size:.5rem; color:#a8bac7; }
+.card-back-sigil { font-size:1.8rem; color:#7198a9; line-height:1; }
+.is-card-back .card-artwork-fallback { border:4px double #466278; background:repeating-linear-gradient(135deg,#152b3e,#152b3e 9px,#122436 9px,#122436 18px); }
+.is-card-back .card-back-sigil { color:#ceb586; }
+.replay-card-caption { display:block; padding:5px 6px; background:#0a1723; }
+.replay-card-caption strong { display:block; font-size:.58rem; line-height:1.25; overflow-wrap:anywhere; }
+.replay-card-caption small { display:block; margin-top:3px; font-size:.53rem; color:#9aafbb; }
+.replay-shell .replay-card.is-tapped { border-color:#d4a365; }
+.replay-card.is-tapped .card-artwork { opacity:.67; }
+.replay-card.is-tapped .card-artwork img { transform:rotate(90deg) scale(.71); }
+.replay-card.is-tapped .replay-card-caption { background:repeating-linear-gradient(135deg,#3c3020,#3c3020 7px,#30281f 7px,#30281f 14px); }
+.replay-card.is-tapped .replay-card-caption small { color:#ffdca8; }
+.replay-shell .replay-card.is-selected { outline:3px solid #a3edd5; outline-offset:2px; }
+.replay-shell .replay-equipment { font-size:.58rem; width:100%; padding:5px; margin-top:4px; background:#394137; }
+.zone-runeArea { --card-width:38px; }
+.zone-runeArea .replay-card-list { display:grid; grid-template-columns:repeat(6,minmax(0,38px)); align-content:start; gap:5px; }
+.zone-runeArea .replay-card-wrap { width:100%; }
+.zone-runeArea .replay-card-caption strong { display:none; }
+.zone-runeArea .replay-card-caption { padding:3px 1px; text-align:center; }
+.zone-runeArea .replay-card-caption small { font-size:.45rem; }
+.zone-runeArea .card-artwork-fallback { padding:2px; }
+.zone-runeArea .card-artwork-fallback strong { font-size:.4rem; }
+.zone-runeArea .card-artwork-fallback small,.zone-runeArea .card-back-sigil { display:none; }
+.command-zones { --card-width:62px; display:grid; grid-template-columns:1fr 1fr; gap:6px; align-content:start; }
+.command-zones .replay-zone { padding:5px; }
+.command-zones .zone-heading h3 { font-size:.5rem; letter-spacing:.06em; }
+.command-zones .zone-trash { grid-column:1/-1; }
+.command-zones .zone-trash .replay-card-wrap { --card-width:48px; }
+.command-zones .replay-card-caption strong { font-size:.49rem; }
+.shared-battlefields { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:16px 0; }
+.battlefield-table { min-width:0; border:1px solid #8c806355; border-radius:8px; background:linear-gradient(180deg,#352c202b,#0a1c2544,#12302c44); overflow:hidden; }
+.battlefield-lane { border:0; border-radius:0; min-height:140px; background:transparent; padding:10px; }
+.replay-empty,.replay-note { font-size:.7rem; color:#8099ab; margin:8px 0; }
+.replay-sidebar { position:sticky; top:12px; min-width:0; }
+.replay-sidebar > section { padding:14px; background:#0f1d2a; color:#e5eef4; border:1px solid #35495a; border-radius:8px; margin-bottom:12px; overflow-wrap:anywhere; }
+.replay-sidebar h2 { margin:0 0 10px; font-size:.9rem; }
+.replay-sidebar p { font-size:.82rem; line-height:1.5; margin-bottom:10px; }
+.replay-sidebar label { display:block; margin-bottom:12px; font-size:.8rem; }
+.replay-sidebar small { font-size:.68rem; color:#a1b6c5; }
+.replay-sidebar button { font-size:.76rem; }
 .replay-sidebar input[type=checkbox] { accent-color:#74e1ba; }
+.selected-card-preview { max-width:190px; margin:8px auto 14px; }
+.replay-chain { list-style:none; padding:0; margin:10px 0 0; max-height:260px; overflow:auto; }
+.replay-chain li { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:.75rem; }
+.replay-chain .card-artwork { width:48px; flex:0 0 48px; }
 .replay-button-row { display:flex; gap:8px; margin:12px 0; }
 .replay-flag { border-left:3px solid #e4a45b; padding:10px; background:#2e2924; margin:10px 0; }
-.replay-flag code { display:block; overflow-wrap:anywhere; margin:6px 0; font-size:.75rem; }
-.replay-flag.unable-to-verify { border-color:#91a9b7; background:#26333d; }
-@media(max-width:1050px) { .replay-layout { grid-template-columns:1fr; } .replay-sidebar { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; } }
-@media(max-width:600px) { .replay-shell { padding:12px; } .replay-heading { display:block; } .replay-badge { display:inline-block; } .replay-zones,.replay-sidebar { grid-template-columns:1fr; } .workspace-nav { padding:12px; gap:6px; } }
+.replay-flag code { display:block; overflow-wrap:anywhere; margin:6px 0; font-size:.68rem; }
+.replay-flag.unable-to-verify { border-color:#91a9b7; background:#202f3b; }
+.recorded-controls { border-bottom:1px solid #263949; padding-bottom:16px; }
+.recorded-controls p { max-width:900px; color:#9eafbf; font-size:.8rem; }
+.recorded-controls details { margin-top:10px; font-size:.75rem; }
+/* Keep desktop zones one card high; crowded zones scroll instead of stretching the board. */
+@media(min-width:651px) {
+  .replay-shell { padding:12px; }
+  .replay-layout { grid-template-columns:minmax(0,1fr) 250px; gap:12px; }
+  .replay-board { --card-width:72px; padding:8px; }
+  .replay-turn { padding:5px 8px; }
+  .replay-player { margin:6px 0; }
+  .player-identity { padding:5px 8px; }
+  .replay-player h2 { font-size:.9rem; margin-bottom:2px; }
+  .player-score { font-size:1.35rem; }
+  /* Six 38px runes + five 5px gaps + list/zone padding and borders. */
+  .player-zone-grid { grid-template-columns:273px minmax(0,1.7fr) minmax(230px,1.5fr); gap:6px; margin-top:5px; }
+  .replay-zone { padding:5px; }
+  .zone-heading { margin-bottom:4px; }
+  .replay-card-list { flex-wrap:nowrap; overflow-x:auto; padding:4px; gap:6px; scrollbar-width:thin; scrollbar-color:#688b92 #101f2b; }
+  .replay-card-caption { padding:3px 4px; }
+  .replay-card-caption strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .replay-card-caption small { margin-top:2px; }
+  .command-zones { --card-width:100px; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; }
+  .command-zones .zone-trash { grid-column:1/-1; }
+  /* Show the upper artwork at a readable scale, rather than shrinking the full card. */
+  .command-zones :is(.zone-legend,.zone-champion) .card-artwork { aspect-ratio:5/3; }
+  .command-zones :is(.zone-legend,.zone-champion) .card-artwork img { height:auto; object-position:top; }
+  .command-zones :is(.zone-legend,.zone-champion) .replay-card-caption strong { font-size:.65rem; white-space:normal; }
+  .command-zones .zone-trash .replay-card-wrap { --card-width:130px; }
+  .command-zones .zone-trash .replay-card { display:flex; align-items:center; }
+  .command-zones .zone-trash .card-artwork { width:26px; flex:0 0 26px; }
+  .command-zones .zone-trash .replay-card-caption { min-width:0; }
+  .command-zones .zone-trash .replay-card-caption strong { font-size:.6rem; }
+  .shared-battlefields { gap:8px; margin:6px 0; }
+  .battlefield-lane { min-height:64px; padding:5px; }
+}
+@media(max-width:1100px) { .replay-layout { grid-template-columns:1fr; } .replay-sidebar { position:static; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; } }
+@media(max-width:650px) { .replay-shell { padding:10px; } .replay-board { padding:7px; --card-width:75px; } .replay-heading { display:block; } .replay-badge { display:inline-block; margin-top:8px; } .replay-sidebar { grid-template-columns:1fr; } .workspace-nav { padding:10px; gap:6px; font-size:.73rem; } .shared-battlefields { grid-template-columns:1fr; } .player-zone-grid { grid-template-columns:1fr; } .command-zones { grid-template-columns:repeat(3,minmax(0,1fr)); } .command-zones .zone-trash { grid-column:auto; } .turn-counters { display:none; } .player-identity { gap:8px; } .replay-player h2 { font-size:.9rem; } .replay-resources { gap:5px 10px; } }
+
+/* Zone sizes depend on the viewport, never on the number of observed cards. */
+.player-identity { height:64px; box-sizing:border-box; overflow:auto; }
+.player-identity > div:nth-child(2) { min-width:0; }
+.replay-zone { height:220px; box-sizing:border-box; display:flex; flex-direction:column; overflow:hidden; }
+.zone-heading { flex:0 0 20px; min-height:0; overflow:auto; }
+.replay-card-list { flex:1; min-height:0; flex-wrap:nowrap; overflow:auto; padding:4px; scrollbar-width:thin; }
+.replay-empty { flex:0 0 auto; }
+.command-zones { grid-template-rows:140px 76px; gap:4px; }
+.command-zones .replay-zone { height:100%; }
+.battlefield-table { position:relative; isolation:isolate; display:grid; grid-template-rows:170px 170px; }
+/* Reserve the outer labels so they do not cover the printed battlefield text. */
+.battlefield-background { position:absolute; inset:25px 0; z-index:-1; opacity:.7; pointer-events:none; }
+.battlefield-background .card-artwork { width:100%; height:100%; aspect-ratio:auto; background:transparent; border-radius:0; }
+.battlefield-background img { object-fit:cover; object-position:center bottom; }
+.battlefield-background .card-artwork-fallback { display:none; }
+.battlefield-lane { height:170px; min-height:0; padding:5px; }
+.battlefield-lane .zone-heading { background:#081321d9; border-radius:3px; padding-inline:4px; }
+.battlefield-lane.side-bottom .zone-heading { order:2; margin-top:4px; margin-bottom:0; }
+.battlefield-lane .replay-empty { color:#edf4f7; text-shadow:0 1px 3px #000; }
+@media(max-width:650px) {
+  .command-zones { grid-template-rows:204px; }
+}
