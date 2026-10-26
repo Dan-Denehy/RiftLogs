@@ -23,7 +23,18 @@ To export another recording, run `node scripts/export-shared-replay.ts 11`, repl
 
 ## Start here (Windows replay preview)
 
-Install **Node.js 24** from <https://nodejs.org> and **Google Chrome** first.
+Run `start.cmd` to check for **Node.js 24** and **Google Chrome**. It offers to
+install missing prerequisites through Windows Package Manager after asking your
+permission. Windows approval and installer agreement prompts may still appear.
+If automatic setup is unavailable, install Node.js 24 from <https://nodejs.org>
+and Google Chrome manually, then retry.
+The bootstrap uses exact package IDs from the WinGet source and selects an
+explicit 24.x Node version. It leaves installer agreements and Windows approval
+interactive; see [Microsoft's WinGet install documentation](https://learn.microsoft.com/en-us/windows/package-manager/winget/install).
+`start.cmd` runs the local PowerShell bootstrap with a process-only execution
+policy override; it does not change your saved PowerShell security policy.
+Developers can run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-bootstrap.ps1`
+to test the bootstrap with mocked installers (no software is installed).
 VS Code is optional; it does not install Node.js for you. Download and extract this
 repository, open its folder in VS Code, and choose **Terminal > New Terminal**.
 Run this one command from the folder containing `start.cmd`:

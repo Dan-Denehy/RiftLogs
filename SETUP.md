@@ -2,7 +2,7 @@
 
 ## TL;DR — quick start
 
-1. Install **Node.js 24** and **Google Chrome**. Reopen your terminal after installing Node.
+1. Download RiftLogs. The launcher checks for **Node.js 24** and **Google Chrome** and offers to install missing prerequisites with your permission.
 2. Download and extract RiftLogs, or clone the repository. Open the folder containing **`start.cmd`** in VS Code, then choose **Terminal → New Terminal**.
 3. Run:
 
@@ -21,7 +21,17 @@ RiftLogs lets you watch shared Riftbound replays or record matches through a
 RiftAtlas spectator account. This is a preview: it replays what the spectator
 could see, not a perfect simulation of every game rule.
 
-## 1. Install the prerequisites
+## 1. Prerequisites (automatic setup available)
+
+You can skip manual installation and run `start.cmd` first, including by
+double-clicking it in File Explorer. It offers to install missing prerequisites
+through Windows Package Manager (`winget`). Answer **Y** only if you agree;
+Windows may ask for administrator approval and the installer may ask you to
+accept agreements. Choosing No stops setup. Installing Node may replace an
+existing system-wide version used by other projects.
+
+If WinGet is unavailable or installation fails, install the following manually,
+then rerun `start.cmd`. Do not disable antivirus or installer integrity checks.
 
 - **Node.js version 24** from [nodejs.org](https://nodejs.org/). Choose version 24
   specifically; the launcher does not accept other major versions. Node runs
@@ -161,6 +171,7 @@ never share `.riftlogs-spectator-profile` or `.playwright-profile`.
 | --- | --- |
 | `start.cmd` is not recognized | Open the extracted folder containing `start.cmd`, then open a new terminal there. Use `.\start.cmd`, including the dot and backslash. |
 | Node is missing or the wrong version | Install Node.js **24**, then close and reopen VS Code. |
+| Automatic prerequisite installation is unavailable | Install/update **App Installer** from Microsoft Store to get WinGet, or install Node.js 24 and Chrome manually using the links above. |
 | Setup or build failed | Keep the error text and send it to the person helping you. Do not disable security tools or run random repair commands. |
 | `node-gyp` asks for Visual Studio / C++ tools | Your copy may have the old launcher. Update to the fixed preview branch and run `.\start.cmd` again. Do not install a compiler just for RiftLogs. |
 | Port 5173 is already in use | Quit the other RiftLogs instance. Do not run the launcher and `npm run dev` together. |
