@@ -13,14 +13,10 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-if not exist "node_modules\.package-lock.json" (
-  echo First-time setup: installing the project's locked dependencies. Internet access is required.
-  call npm.cmd ci
-  if errorlevel 1 (
-    echo Setup failed. Check your internet connection and the error above. Nothing was recorded.
-    pause
-    exit /b 1
-  )
+node scripts/setup.ts
+if errorlevel 1 (
+  pause
+  exit /b 1
 )
 echo Building the replay interface...
 call npm.cmd run build

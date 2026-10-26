@@ -1,5 +1,8 @@
 # RiftLogs
 
+**New here? Follow the [Windows setup guide](SETUP.md).** It covers the one-command
+launcher, watching shared files without a login, and recording your own matches.
+
 ## Open a shared replay
 
 Completed spectator recordings automatically create a compressed sharing file in
@@ -34,6 +37,13 @@ the interface, starts the local viewer, and opens it in Chrome. Do not also run
 `npm run dev`. The launcher serves only the built entry page and referenced JS/CSS
 bundles, not the project folder. The interface and API share `http://127.0.0.1:5173`;
 the launcher does not start a Vite development server or a second server on port 3001.
+Windows setup uses `npm ci --ignore-scripts` for the audited lockfile, then checks
+installed packages for unexpected lifecycle/native-build requirements and tests
+SQLite's bundled binary with an in-memory read/write. No Python or C++ compiler
+is needed. A separate successful-setup fingerprint includes the package files,
+Node version and platform; incomplete or outdated installations are retried.
+New dependency installation scripts require reviewing this policy, not just
+updating the lockfile. macOS-only optional fsevents packages are not installed on Windows.
 Use the printed `http://127.0.0.1:5173` address, not a different hostname or port.
 Both API launch modes reject foreign Host/Origin headers and cross-site browser
 requests. Imports and corrections require the trusted interface origin. These checks
@@ -103,14 +113,17 @@ The current diagnostic checkpoint supports this flow:
 3. Import that file through the RiftLogs web page.
 4. RiftLogs stores the original JSON text unchanged and displays its captured turns and actions.
 
-Automatic login, lobby joining, Playwright capture, live monitoring, and normalization are deliberately deferred from this checkpoint. Live monitoring is required for the eventual V1 capture path because RiftAtlas purges events beyond its most recent 100.
+This console-extraction workflow is a legacy diagnostic option. The spectator
+recorder described above now supports live recording and automatic room joining
+after manual login. Live recording is needed because RiftAtlas purges events
+beyond its most recent 100.
 
 ## Local development
 
 Install dependencies:
 
 ```powershell
-npm.cmd install
+node scripts/setup.ts
 ```
 
 `npm` is Node's package manager. On this Windows machine, using `npm.cmd` avoids PowerShell's script-execution restriction.
@@ -170,8 +183,9 @@ The `--` tells npm to pass what follows to the spectator script instead of treat
 it as an npm option. Once the match log appears, the probe creates a live capture in
 `riftlogs.db`, saves every currently retained action, and then records each new action
 as it appears. Each database event keeps its raw DOM JSON before normalization.
-Repeated actions are stored separately. Press `Ctrl+C` or close the spectator browser
-to mark the capture complete.
+Repeated actions are stored separately. Type `stop` and press Enter, then wait for
+the save and export messages. Closing the spectator browser early marks the
+capture interrupted, not complete.
 
 RiftLogs keeps the browser session under
 `.riftlogs-spectator-profile/`, which is excluded from Git. When a match log is
